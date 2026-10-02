@@ -1,0 +1,23 @@
+*{box-sizing:border-box}body{margin:0;background:#07111f;color:#fff;font-family:Arial,Helvetica,sans-serif}
+header{height:72px;background:#0b1728;display:flex;align-items:center;gap:28px;padding:0 28px;position:sticky;top:0;z-index:5;box-shadow:0 2px 12px #0008}
+.logo{font-size:25px;font-weight:800;color:#fff;white-space:nowrap}
+nav{display:flex;gap:18px}nav a{color:#cbd5e1;text-decoration:none;font-weight:600}nav a:hover{color:#fff}
+#buscar{margin-left:auto;width:280px;background:#111f32;border:1px solid #263a52;color:#fff;padding:11px 14px;border-radius:8px;outline:none}
+main{max-width:1200px;margin:auto;padding:30px 24px 70px}h1{font-size:27px;margin:0 0 20px}h2{margin-top:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:22px}
+.card{position:relative;background:#0d1b2d;border-radius:12px;overflow:hidden;cursor:pointer;transition:.2s;box-shadow:0 8px 22px #0004}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 28px #0008}
+.poster{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:#142235}
+.info{padding:12px}.info h3{margin:0 0 6px;font-size:17px}.meta{color:#94a3b8;font-size:13px}
+.delete{position:absolute;right:8px;top:8px;border:0;background:#dc2626;color:#fff;padding:6px 9px;border-radius:6px;cursor:pointer;z-index:2}
+.admin{margin-top:55px;background:#0b1728;padding:24px;border-radius:14px;border:1px solid #1b2c43}
+.form{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
+label{color:#cbd5e1;font-size:13px;display:flex;flex-direction:column;gap:7px}
+input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border-radius:7px;outline:none}
+.full{grid-column:1/-1}.form button{grid-column:1/-1;padding:13px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}
+.form button:hover{background:#1d4ed8}
+.modal{display:none;position:fixed;inset:0;background:#000d;z-index:20;align-items:center;justify-content:center;padding:20px}
+.modal.open{display:flex}.playerbox{position:relative;width:min(1000px,96vw);background:#07111f;border-radius:12px;padding:20px;box-shadow:0 20px 60px #000}
+.playerbox h2{margin:0 45px 14px 0}.playerbox video{width:100%;max-height:75vh;background:#000;border-radius:8px;display:block}
+.close{position:absolute;right:12px;top:10px;background:#dc2626;color:#fff;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:16px}
+@media(max-width:760px){header{flex-wrap:wrap;height:auto;padding:15px}.logo{width:100%}#buscar{margin-left:0;width:100%}.form{grid-template-columns:1fr}.full{grid-column:auto}.grid{grid-template-columns:repeat(2,1fr)}main{padding:22px 14px}}

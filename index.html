@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiCine</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="logo">▶ MiCine</div>
+  <nav>
+    <a href="#catalogo">Catálogo</a>
+    <a href="#admin">Administrar</a>
+  </nav>
+  <input id="buscar" type="search" placeholder="Buscar película...">
+</header>
+
+<main>
+  <section id="catalogo">
+    <h1>🎬 Películas</h1>
+    <div id="grid" class="grid"></div>
+  </section>
+
+  <section id="admin" class="admin">
+    <h2>➕ Agregar película</h2>
+    <div class="form">
+      <label>Título<input id="titulo" type="text"></label>
+      <label>Año<input id="anio" type="number" value="2026"></label>
+      <label>Género<input id="genero" type="text" placeholder="Drama"></label>
+      <label>Portada<input id="portada" type="file" accept="image/*"></label>
+      <label class="full">🔗 Direct Link (streaming)
+        <input id="url" type="url" placeholder="https://www.opendrive.com/...">
+      </label>
+      <button id="agregar">AGREGAR PELÍCULA</button>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal">
+  <div class="playerbox">
+    <button id="cerrar" class="close">✕</button>
+    <h2 id="ptitulo"></h2>
+    <video id="player" controls autoplay playsinline preload="metadata"></video>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
