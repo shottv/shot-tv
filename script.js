@@ -47,22 +47,30 @@ function render(){
 function mostrarAdmin(){
   const loginBox = $("loginBox");
   const adminPanel = $("adminPanel");
+  const adminSection = $("admin");
 
   // Mostrar SOLO una de las dos vistas: login o panel de administrador.
   if(usuario){
     loginBox.hidden = true;
+    loginBox.classList.add("hidden");
     adminPanel.hidden = false;
+    adminPanel.classList.remove("hidden");
   }else{
     loginBox.hidden = false;
+    loginBox.classList.remove("hidden");
     adminPanel.hidden = true;
+    adminPanel.classList.add("hidden");
   }
   render();
 }
 
 function abrirAdministracion(e){
-  e.preventDefault();
-  $("admin").classList.remove("hidden");
-  document.getElementById("admin").scrollIntoView({behavior:"smooth",block:"start"});
+  if(e) e.preventDefault();
+  const adminSection=$("admin");
+  adminSection.classList.remove("hidden");
+  mostrarAdmin();
+  history.replaceState(null,"", "#admin");
+  adminSection.scrollIntoView({behavior:"smooth",block:"start"});
   setTimeout(()=>{
     if(!usuario) $("loginEmail").focus();
   },250);
@@ -87,6 +95,7 @@ async function iniciarSesion(){
   $("loginPassword").value="";
   mensaje("loginMsg","");
   mostrarAdmin();
+  abrirAdministracion();
 }
 
 async function cerrarSesion(){
@@ -211,6 +220,7 @@ function cerrar(){
 
 $("buscar").oninput=render;
 $("adminLink").onclick=abrirAdministracion;
+document.querySelector('a[href="#catalogo"]').onclick=()=>{ $("admin").classList.add("hidden"); };
 $("loginBtn").onclick=iniciarSesion;
 $("logoutBtn").onclick=cerrarSesion;
 $("agregar").onclick=agregarPelicula;
