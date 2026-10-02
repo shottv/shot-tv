@@ -45,8 +45,17 @@ function render(){
 }
 
 function mostrarAdmin(){
-  $("loginBox").classList.toggle("hidden",!!usuario);
-  $("adminPanel").classList.toggle("hidden",!usuario);
+  const loginBox = $("loginBox");
+  const adminPanel = $("adminPanel");
+
+  // Mostrar SOLO una de las dos vistas: login o panel de administrador.
+  if(usuario){
+    loginBox.hidden = true;
+    adminPanel.hidden = false;
+  }else{
+    loginBox.hidden = false;
+    adminPanel.hidden = true;
+  }
   render();
 }
 
