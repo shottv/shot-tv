@@ -11,7 +11,7 @@
   <div class="logo">▶ MiCine</div>
   <nav>
     <a href="#catalogo">Catálogo</a>
-    <a href="#admin">Administrar</a>
+    <a href="#admin" id="adminLink">Administrar</a>
   </nav>
   <input id="buscar" type="search" placeholder="Buscar película...">
 </header>
@@ -19,20 +19,40 @@
 <main>
   <section id="catalogo">
     <h1>🎬 Películas</h1>
+    <div id="estado" class="estado">Cargando catálogo...</div>
     <div id="grid" class="grid"></div>
   </section>
 
-  <section id="admin" class="admin">
-    <h2>➕ Agregar película</h2>
-    <div class="form">
-      <label>Título<input id="titulo" type="text"></label>
-      <label>Año<input id="anio" type="number" value="2026"></label>
-      <label>Género<input id="genero" type="text" placeholder="Drama"></label>
-      <label>Portada<input id="portada" type="file" accept="image/*"></label>
-      <label class="full">🔗 Direct Link (streaming)
-        <input id="url" type="url" placeholder="https://www.opendrive.com/...">
-      </label>
-      <button id="agregar">AGREGAR PELÍCULA</button>
+  <section id="admin" class="admin hidden">
+    <div id="loginBox">
+      <h2>🔐 Administrar</h2>
+      <div class="loginform">
+        <label>Correo<input id="loginEmail" type="email" autocomplete="username"></label>
+        <label>Contraseña<input id="loginPassword" type="password" autocomplete="current-password"></label>
+        <button id="loginBtn">INICIAR SESIÓN</button>
+      </div>
+      <div id="loginMsg" class="mensaje"></div>
+    </div>
+
+    <div id="adminPanel" class="hidden">
+      <div class="adminTop">
+        <div>
+          <h2>➕ Agregar película</h2>
+          <p class="subtexto">Administrador conectado.</p>
+        </div>
+        <button id="logoutBtn" class="logout">CERRAR SESIÓN</button>
+      </div>
+      <div class="form">
+        <label>Título<input id="titulo" type="text"></label>
+        <label>Año<input id="anio" type="number" value="2026"></label>
+        <label>Género<input id="genero" type="text" placeholder="Drama"></label>
+        <label>Portada<input id="portada" type="file" accept="image/*"></label>
+        <label class="full">🔗 Direct Link (streaming)
+          <input id="url" type="url" placeholder="https://www.opendrive.com/...">
+        </label>
+        <button id="agregar">AGREGAR PELÍCULA</button>
+      </div>
+      <div id="adminMsg" class="mensaje"></div>
     </div>
   </section>
 </main>
@@ -45,6 +65,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
 </body>
 </html>
