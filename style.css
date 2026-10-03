@@ -119,3 +119,10 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .business-register-form .full{grid-column:auto}
   .register-submit{grid-column:auto}
 }
+
+
+/* Registro de negocios: imagen y seguimiento */
+.registro-imagen-label small{display:block;margin-top:7px;opacity:.8;font-size:12px;line-height:1.35}
+.registro-imagen-preview{margin-top:10px;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.03)}
+.registro-imagen-preview img{width:82px;height:82px;object-fit:cover;border-radius:10px}
+.registro-imagen-preview span{font-size:13px;word-break:break-word}

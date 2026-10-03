@@ -682,27 +682,39 @@ function abrirNegocios(e){
 
 const WHATSAPP_REGISTRO_NEGOCIO = "526561273144";
 
+function generarNumeroRegistro(){
+  const d=new Date();
+  const fecha=d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+  const hora=String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0")+String(d.getSeconds()).padStart(2,"0");
+  const aleatorio=Math.random().toString(36).slice(2,6).toUpperCase();
+  return `STV-${fecha}-${hora}-${aleatorio}`;
+}
+
 function limpiarRegistroNegocio(){
-  ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{
-    const el=$(id);
-    if(el) el.value="";
-  });
-  if($("regCategoria")) $("regCategoria").selectedIndex=0;
+  ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
+  if($("regCategoria")) $("regCategoria").value="Comida";
+  if($("regImagen")) $("regImagen").value="";
+  if($("regImagenPreview")){ $("regImagenPreview").innerHTML=""; $("regImagenPreview").classList.add("hidden"); }
   mensaje("registroNegocioMsg","");
 }
 
-function abrirRegistroNegocio(){
-  $("registroNegocio").classList.remove("hidden");
-  $("registroNegocio").scrollIntoView({behavior:"smooth",block:"start"});
-  setTimeout(()=>$("regNombre").focus(),250);
+function vistaPreviaImagenRegistro(){
+  const file=$("regImagen")?.files?.[0];
+  const box=$("regImagenPreview");
+  if(!box)return;
+  if(!file){ box.innerHTML=""; box.classList.add("hidden"); return; }
+  if(!file.type.startsWith("image/")){
+    $("regImagen").value="";
+    box.innerHTML=""; box.classList.add("hidden");
+    mensaje("registroNegocioMsg","Selecciona una imagen válida.",true);
+    return;
+  }
+  const url=URL.createObjectURL(file);
+  box.innerHTML=`<img src="${url}" alt="Vista previa de la imagen del negocio"><span>📸 ${esc(file.name)}</span>`;
+  box.classList.remove("hidden");
 }
 
-function cerrarRegistroNegocio(){
-  $("registroNegocio").classList.add("hidden");
-  limpiarRegistroNegocio();
-}
-
-function enviarRegistroPorWhatsApp(){
+async function enviarRegistroPorWhatsApp(){
   const nombre=$("regNombre").value.trim();
   const categoria=$("regCategoria").value.trim();
   const descripcion=$("regDescripcion").value.trim();
@@ -714,16 +726,25 @@ function enviarRegistroPorWhatsApp(){
   const instagram=$("regInstagram").value.trim();
   const web=$("regWeb").value.trim();
   const mapa=$("regMapa").value.trim();
+  const file=$("regImagen")?.files?.[0];
 
-  if(!nombre || !descripcion){
-    mensaje("registroNegocioMsg","Completa al menos el nombre y la descripción del negocio.",true);
+  if(!nombre || !descripcion || !file){
+    mensaje("registroNegocioMsg","Completa nombre, descripción y selecciona la imagen del negocio.",true);
     if(!nombre) $("regNombre").focus();
-    else $("regDescripcion").focus();
+    else if(!descripcion) $("regDescripcion").focus();
+    else $("regImagen").click();
+    return;
+  }
+  if(!file.type.startsWith("image/")){
+    mensaje("registroNegocioMsg","La imagen seleccionada no es válida.",true);
     return;
   }
 
+  const numeroRegistro=generarNumeroRegistro();
   const mensajeWhatsApp = [
     "🏪 *SOLICITUD DE REGISTRO DE NEGOCIO — SHOT TV*",
+    "",
+    `*Número de registro:* ${numeroRegistro}`,
     "",
     `*Nombre:* ${nombre}`,
     `*Categoría:* ${categoria}`,
@@ -735,11 +756,29 @@ function enviarRegistroPorWhatsApp(){
     `*Facebook:* ${facebook || "No proporcionado"}`,
     `*Instagram:* ${instagram || "No proporcionado"}`,
     `*Sitio web:* ${web || "No proporcionado"}`,
-    `*Google Maps:* ${mapa || "No proporcionado"}`
+    `*Google Maps:* ${mapa || "No proporcionado"}`,
+    "",
+    `📸 *Imagen:* ${file.name}`
   ].join("\n");
 
-  const url="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
-  window.open(url,"_blank","noopener,noreferrer");
+  const waUrl="https://wa.me/526561273144?text="+encodeURIComponent(mensajeWhatsApp);
+
+  try{
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({title:`Registro ${numeroRegistro} — ${nombre}`,text:mensajeWhatsApp,files:[file]});
+      mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} preparada para compartir. ✅`);
+      return;
+    }
+  }catch(error){
+    if(error && error.name==="AbortError") return;
+    console.warn("No fue posible compartir la imagen directamente:",error);
+  }
+
+  // Compatibilidad: WhatsApp abre el mensaje y el cliente adjunta la imagen manualmente.
+  window.location.href=waUrl;
+  setTimeout(()=>{
+    mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} enviada a WhatsApp. Adjunta la imagen ${file.name} en el chat antes de enviarlo. 📸`,false);
+  },700);
 }
 
 function abrirCatalogo(e){
@@ -787,6 +826,7 @@ $("adminLink").onclick=abrirAdministracion;
 $("abrirRegistroNegocio").onclick=abrirRegistroNegocio;
 $("cerrarRegistroNegocio").onclick=cerrarRegistroNegocio;
 $("enviarRegistroNegocio").onclick=enviarRegistroPorWhatsApp;
+$("regImagen").onchange=vistaPreviaImagenRegistro;
 
 $("loginBtn").onclick=iniciarSesion;
 $("logoutBtn").onclick=cerrarSesion;
