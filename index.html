@@ -13,6 +13,7 @@
     <a href="#catalogo">Catálogo</a>
     <a href="#admin" id="adminLink">Administrar</a>
   </nav>
+  <div class="ad-banner" id="adBanner" aria-label="Publicidad"><span>PUBLICIDAD</span></div>
   <input id="buscar" type="search" placeholder="Buscar película...">
 </header>
 
@@ -53,9 +54,41 @@
         <button id="agregar">AGREGAR PELÍCULA</button>
       </div>
       <div id="adminMsg" class="mensaje"></div>
+
+      <hr class="admin-sep">
+      <div class="ad-admin">
+        <h2>📢 Administrar publicidad</h2>
+        <p class="subtexto">Coloca una imagen y, opcionalmente, el enlace al que llevará el anuncio.</p>
+        <div class="form">
+          <label>Banner publicitario<input id="adFile" type="file" accept="image/*"></label>
+          <label>Enlace del anuncio<input id="adLink" type="url" placeholder="https://..."></label>
+          <label class="ad-check"><span>Publicidad activa</span><input id="adActivo" type="checkbox" checked></label>
+          <button id="guardarAd">GUARDAR PUBLICIDAD</button>
+        </div>
+        <div id="adAdminMsg" class="mensaje"></div>
+        <div id="adActual" class="ad-actual"></div>
+      </div>
     </div>
   </section>
 </main>
+
+<div id="editModal" class="edit-modal">
+  <div class="editbox">
+    <button id="cerrarEdicion" class="close">✕</button>
+    <h2>✏️ Editar película</h2>
+    <div class="form editform">
+      <label>Título<input id="editTitulo" type="text"></label>
+      <label>Año<input id="editAnio" type="number"></label>
+      <label>Género<input id="editGenero" type="text"></label>
+      <label class="full">🔗 Direct Link (streaming)
+        <input id="editUrl" type="url">
+      </label>
+      <label class="full">Portada nueva (opcional)<input id="editPortada" type="file" accept="image/*"></label>
+      <button id="guardarEdicion">GUARDAR CAMBIOS</button>
+    </div>
+    <div id="editMsg" class="mensaje"></div>
+  </div>
+</div>
 
 <div id="modal" class="modal">
   <div class="playerbox">
