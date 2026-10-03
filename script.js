@@ -690,11 +690,32 @@ function generarNumeroRegistro(){
   return `STV-${fecha}-${hora}-${aleatorio}`;
 }
 
-function limpiarRegistroNegocio(){
+function abrirRegistroNegocio(){
+  const panel=$("registroNegocio");
+  if(!panel)return;
+  // El número nace en el momento exacto en que el cliente pulsa "Registra tu negocio".
+  const numero=generarNumeroRegistro();
+  $("regNumero").value=numero;
+  limpiarRegistroNegocio(false);
+  // limpiarRegistroNegocio(false) conserva el número recién generado.
+  $("regNumero").value=numero;
+  panel.classList.remove("hidden");
+  panel.scrollIntoView({behavior:"smooth",block:"start"});
+  setTimeout(()=>$("regNombre")?.focus(),350);
+}
+
+function cerrarRegistroNegocio(){
+  const panel=$("registroNegocio");
+  if(panel)panel.classList.add("hidden");
+  limpiarRegistroNegocio(true);
+}
+
+function limpiarRegistroNegocio(limpiarNumero=true){
   ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
   if($("regCategoria")) $("regCategoria").value="Comida";
   if($("regImagen")) $("regImagen").value="";
   if($("regImagenPreview")){ $("regImagenPreview").innerHTML=""; $("regImagenPreview").classList.add("hidden"); }
+  if(limpiarNumero && $("regNumero")) $("regNumero").value="";
   mensaje("registroNegocioMsg","");
 }
 
@@ -740,7 +761,8 @@ async function enviarRegistroPorWhatsApp(){
     return;
   }
 
-  const numeroRegistro=generarNumeroRegistro();
+  const numeroRegistro=$("regNumero")?.value.trim() || generarNumeroRegistro();
+  if($("regNumero")) $("regNumero").value=numeroRegistro;
   const mensajeWhatsApp = [
     "🏪 *SOLICITUD DE REGISTRO DE NEGOCIO — SHOT TV*",
     "",
