@@ -692,9 +692,15 @@ function limpiarRegistroNegocio(){
 }
 
 function abrirRegistroNegocio(){
-  $("registroNegocio").classList.remove("hidden");
-  $("registroNegocio").scrollIntoView({behavior:"smooth",block:"start"});
-  setTimeout(()=>$("regNombre").focus(),250);
+  const formulario=$("registroNegocio");
+  if(!formulario)return;
+  formulario.classList.remove("hidden");
+  formulario.style.display="block";
+  setTimeout(()=>{
+    formulario.scrollIntoView({behavior:"smooth",block:"start"});
+    const campo=$("regNombre");
+    if(campo)campo.focus();
+  },50);
 }
 
 function cerrarRegistroNegocio(){
@@ -739,7 +745,7 @@ function enviarRegistroPorWhatsApp(){
   ].join("\n");
 
   const url="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
-  window.open(url,"_blank","noopener,noreferrer");
+  window.location.href=url;
 }
 
 function abrirCatalogo(e){
@@ -784,9 +790,9 @@ $("filtroCategoria").onchange=renderNegocios;
 $("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;
-$("abrirRegistroNegocio").onclick=abrirRegistroNegocio;
-$("cerrarRegistroNegocio").onclick=cerrarRegistroNegocio;
-$("enviarRegistroNegocio").onclick=enviarRegistroPorWhatsApp;
+$("abrirRegistroNegocio").addEventListener("click", abrirRegistroNegocio);
+$("cerrarRegistroNegocio").addEventListener("click", cerrarRegistroNegocio);
+$("enviarRegistroNegocio").addEventListener("click", enviarRegistroPorWhatsApp);
 
 $("loginBtn").onclick=iniciarSesion;
 $("logoutBtn").onclick=cerrarSesion;
