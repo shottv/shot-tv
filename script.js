@@ -162,6 +162,7 @@ async function actualizarEstadoSolicitud(id,estado){
 
 function abrirAdministracion(e){
   if(e) e.preventDefault();
+  $("buscar").style.display="";
   const adminSection=$("admin");
   adminSection.classList.remove("hidden");
   mostrarAdmin();
@@ -515,7 +516,7 @@ function nombreArchivoNegocio(nombre){
 
 async function cargarNegocios(){
   const {data,error}=await db.from("negocios")
-    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,ciudad,estado,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
     .eq("activo",true)
     .order("destacado",{ascending:false})
     .order("created_at",{ascending:false});
@@ -533,7 +534,7 @@ function renderNegocios(){
   const q=($("buscarNegocio")?.value||"").toLowerCase().trim();
   const cat=$("filtroCategoria")?.value||"";
   const lista=negocios.filter(n=>{
-    const texto=[n.nombre,n.categoria,n.descripcion,n.direccion].join(" ").toLowerCase();
+    const texto=[n.nombre,n.categoria,n.descripcion,n.direccion,n.ciudad,n.estado].join(" ").toLowerCase();
     return (!q || texto.includes(q)) && (!cat || n.categoria===cat);
   });
 
@@ -553,6 +554,7 @@ function renderNegocios(){
           <h3>${esc(n.nombre)}</h3>
           ${n.descripcion?`<p>${esc(n.descripcion)}</p>`:""}
           ${n.direccion?`<div class="business-line">📍 ${esc(n.direccion)}</div>`:""}
+           ${n.ciudad||n.estado?`<div class="business-line">🏙️ ${esc([n.ciudad,n.estado].filter(Boolean).join(", "))}</div>`:""}
           ${n.horario?`<div class="business-line">🕐 ${esc(n.horario)}</div>`:""}
           <div class="business-actions">
             ${wa?`<a class="business-btn whatsapp" href="${wa}" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>`:""}
@@ -576,6 +578,8 @@ function limpiarFormularioNegocio(){
   $("negImagen").value="";
   $("negDescripcion").value="";
   $("negDireccion").value="";
+  $("negCiudad").value="";
+  $("negEstado").value="";
   $("negTelefono").value="";
   $("negWhatsapp").value="";
   $("negHorario").value="";
@@ -592,7 +596,7 @@ function limpiarFormularioNegocio(){
 async function cargarNegociosAdmin(){
   if(!usuario)return;
   const {data,error}=await db.from("negocios")
-    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,ciudad,estado,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
     .order("created_at",{ascending:false});
 
   if(error){
@@ -628,6 +632,8 @@ function editarNegocio(id){
     $("negImagen").value="";
     $("negDescripcion").value=data.descripcion||"";
     $("negDireccion").value=data.direccion||"";
+    $("negCiudad").value=data.ciudad||"";
+    $("negEstado").value=data.estado||"";
     $("negTelefono").value=data.telefono||"";
     $("negWhatsapp").value=data.whatsapp||"";
     $("negHorario").value=data.horario||"";
@@ -700,7 +706,7 @@ async function guardarNegocio(){
     imagen=db.storage.from("negocios").getPublicUrl(nuevoPath).data.publicUrl;
   }
 
-  const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
+  const payload={nombre,categoria,descripcion,imagen,direccion,ciudad,estado,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
 
   let error=null;
   if(negocioEditando){
@@ -764,6 +770,7 @@ function abrirNegocios(e){
   $("admin").classList.add("hidden");
   $("catalogo").classList.add("hidden");
   $("negocios").classList.remove("hidden");
+  $("buscar").style.display="none";
   history.replaceState(null,"","#negocios");
   $("negocios").scrollIntoView({behavior:"smooth",block:"start"});
   cargarNegocios();
@@ -806,7 +813,7 @@ function cerrarRegistroNegocio(){
 }
 
 function limpiarRegistroNegocio(limpiarNumero=true){
-  ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
+  ["regNombre","regDescripcion","regDireccion","regCiudad","regEstado","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
   if($("regCategoria")) $("regCategoria").value="Comida";
   if(limpiarNumero && $("regNumero")) $("regNumero").value="";
   mensaje("registroNegocioMsg","");
@@ -922,6 +929,7 @@ function abrirCatalogo(e){
   $("negocios").classList.add("hidden");
   $("admin").classList.add("hidden");
   $("catalogo").classList.remove("hidden");
+  $("buscar").style.display="";
   history.replaceState(null,"","#catalogo");
 }
 
