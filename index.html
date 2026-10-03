@@ -26,8 +26,48 @@
   </section>
 
   <section id="negocios" class="business-section hidden">
-    <h1>🏪 Negocios</h1>
-    <p class="subtexto">Encuentra negocios y servicios de tu comunidad.</p>
+    <div class="business-heading">
+      <div>
+        <h1>🏪 Negocios</h1>
+        <p class="subtexto">Encuentra negocios y servicios de tu comunidad.</p>
+      </div>
+      <button id="abrirRegistroNegocio" class="register-business-btn" type="button">📲 Registra tu negocio</button>
+    </div>
+
+    <div id="registroNegocio" class="business-register hidden">
+      <div class="business-register-head">
+        <div>
+          <h2>📋 Registra tu negocio</h2>
+          <p class="subtexto">Completa los datos y envía la solicitud directamente por WhatsApp.</p>
+        </div>
+        <button id="cerrarRegistroNegocio" class="secondary-btn" type="button">✕ Cerrar</button>
+      </div>
+
+      <div class="business-register-form">
+        <label>Nombre del negocio *<input id="regNombre" type="text" placeholder="Ej. Flautas Don Paco" required></label>
+        <label>Categoría *
+          <select id="regCategoria">
+            <option>Comida</option><option>Barberías</option><option>Belleza</option><option>Tiendas</option>
+            <option>Automotriz</option><option>Servicios</option><option>Hogar</option><option>Ropa</option>
+            <option>Tecnología</option><option>Mascotas</option><option>Educación</option><option>Salud</option><option>Otros</option>
+          </select>
+        </label>
+        <label class="full">Descripción *
+          <textarea id="regDescripcion" rows="3" placeholder="Describe brevemente qué ofrece tu negocio..."></textarea>
+        </label>
+        <label>Dirección<input id="regDireccion" type="text" placeholder="Calle, número, colonia..."></label>
+        <label>Teléfono<input id="regTelefono" type="tel" placeholder="6561234567"></label>
+        <label>WhatsApp<input id="regWhatsapp" type="tel" placeholder="6561234567"></label>
+        <label>Horario<input id="regHorario" type="text" placeholder="Lunes a sábado de 9 a 6"></label>
+        <label>Facebook<input id="regFacebook" type="url" placeholder="https://facebook.com/..."></label>
+        <label>Instagram<input id="regInstagram" type="url" placeholder="https://instagram.com/..."></label>
+        <label>Sitio web<input id="regWeb" type="url" placeholder="https://..."></label>
+        <label>Google Maps<input id="regMapa" type="url" placeholder="https://maps.google.com/..."></label>
+        <button id="enviarRegistroNegocio" class="register-submit" type="button">📲 ENVIAR SOLICITUD POR WHATSAPP</button>
+      </div>
+      <div id="registroNegocioMsg" class="mensaje"></div>
+    </div>
+
     <div class="business-tools">
       <input id="buscarNegocio" type="search" placeholder="🔎 Buscar negocio...">
       <select id="filtroCategoria">

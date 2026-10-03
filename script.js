@@ -680,6 +680,68 @@ function abrirNegocios(e){
   cargarNegocios();
 }
 
+const WHATSAPP_REGISTRO_NEGOCIO = "52561273144";
+
+function limpiarRegistroNegocio(){
+  ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{
+    const el=$(id);
+    if(el) el.value="";
+  });
+  if($("regCategoria")) $("regCategoria").selectedIndex=0;
+  mensaje("registroNegocioMsg","");
+}
+
+function abrirRegistroNegocio(){
+  $("registroNegocio").classList.remove("hidden");
+  $("registroNegocio").scrollIntoView({behavior:"smooth",block:"start"});
+  setTimeout(()=>$("regNombre").focus(),250);
+}
+
+function cerrarRegistroNegocio(){
+  $("registroNegocio").classList.add("hidden");
+  limpiarRegistroNegocio();
+}
+
+function enviarRegistroPorWhatsApp(){
+  const nombre=$("regNombre").value.trim();
+  const categoria=$("regCategoria").value.trim();
+  const descripcion=$("regDescripcion").value.trim();
+  const direccion=$("regDireccion").value.trim();
+  const telefono=$("regTelefono").value.trim();
+  const whatsapp=$("regWhatsapp").value.trim();
+  const horario=$("regHorario").value.trim();
+  const facebook=$("regFacebook").value.trim();
+  const instagram=$("regInstagram").value.trim();
+  const web=$("regWeb").value.trim();
+  const mapa=$("regMapa").value.trim();
+
+  if(!nombre || !descripcion){
+    mensaje("registroNegocioMsg","Completa al menos el nombre y la descripción del negocio.",true);
+    if(!nombre) $("regNombre").focus();
+    else $("regDescripcion").focus();
+    return;
+  }
+
+  const mensajeWhatsApp = [
+    "🏪 *SOLICITUD DE REGISTRO DE NEGOCIO — SHOT TV*",
+    "",
+    `*Nombre:* ${nombre}`,
+    `*Categoría:* ${categoria}`,
+    `*Descripción:* ${descripcion}`,
+    `*Dirección:* ${direccion || "No proporcionada"}`,
+    `*Teléfono:* ${telefono || "No proporcionado"}`,
+    `*WhatsApp:* ${whatsapp || "No proporcionado"}`,
+    `*Horario:* ${horario || "No proporcionado"}`,
+    `*Facebook:* ${facebook || "No proporcionado"}`,
+    `*Instagram:* ${instagram || "No proporcionado"}`,
+    `*Sitio web:* ${web || "No proporcionado"}`,
+    `*Google Maps:* ${mapa || "No proporcionado"}`
+  ].join("\n");
+
+  const url="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
+  window.open(url,"_blank","noopener,noreferrer");
+}
+
 function abrirCatalogo(e){
   if(e)e.preventDefault();
   $("negocios").classList.add("hidden");
@@ -722,6 +784,9 @@ $("filtroCategoria").onchange=renderNegocios;
 $("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;
+$("abrirRegistroNegocio").onclick=abrirRegistroNegocio;
+$("cerrarRegistroNegocio").onclick=cerrarRegistroNegocio;
+$("enviarRegistroNegocio").onclick=enviarRegistroPorWhatsApp;
 
 $("loginBtn").onclick=iniciarSesion;
 $("logoutBtn").onclick=cerrarSesion;
