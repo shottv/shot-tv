@@ -127,6 +127,8 @@ async function cargarControlSolicitudes(){
         <div class="solicitud-detalle">
           <span><b>Descripción:</b> ${escSolicitud(s.descripcion||"No proporcionada")}</span>
           <span><b>Dirección:</b> ${escSolicitud(s.direccion||"No proporcionada")}</span>
+          <span><b>Ciudad:</b> ${escSolicitud(s.ciudad||"No proporcionada")}</span>
+          <span><b>Estado:</b> ${escSolicitud(s.estado||"No proporcionado")}</span>
           <span><b>Teléfono:</b> ${escSolicitud(s.telefono||"No proporcionado")}</span>
           <span><b>WhatsApp:</b> ${escSolicitud(s.whatsapp||"No proporcionado")}</span>
           <span><b>Horario:</b> ${escSolicitud(s.horario||"No proporcionado")}</span>
@@ -657,6 +659,8 @@ async function guardarNegocio(){
   const categoria=$("negCategoria").value.trim();
   const descripcion=$("negDescripcion").value.trim();
   const direccion=$("negDireccion").value.trim();
+  const ciudad=$("negCiudad").value.trim();
+  const estado=$("negEstado").value.trim();
   const telefono=$("negTelefono").value.trim();
   const whatsapp=$("negWhatsapp").value.trim();
   const horario=$("negHorario").value.trim();
@@ -826,6 +830,8 @@ async function enviarRegistroPorWhatsApp(){
   const categoria=$("regCategoria").value.trim();
   const descripcion=$("regDescripcion").value.trim();
   const direccion=$("regDireccion").value.trim();
+  const ciudad=$("regCiudad").value.trim();
+  const estado=$("regEstado").value.trim();
   const telefono=$("regTelefono").value.trim();
   const whatsapp=$("regWhatsapp").value.trim();
   const horario=$("regHorario").value.trim();
@@ -852,6 +858,8 @@ async function enviarRegistroPorWhatsApp(){
     `*Categoría:* ${categoria}`,
     `*Descripción:* ${descripcion}`,
     `*Dirección:* ${direccion||"No proporcionada"}`,
+    `*Ciudad:* ${ciudad||"No proporcionada"}`,
+    `*Estado:* ${estado||"No proporcionado"}`,
     `*Teléfono:* ${telefono||"No proporcionado"}`,
     `*WhatsApp:* ${whatsapp||"No proporcionado"}`,
     `*Horario:* ${horario||"No proporcionado"}`,
@@ -876,6 +884,8 @@ async function enviarRegistroPorWhatsApp(){
     categoria,
     descripcion,
     direccion: direccion || null,
+    ciudad: ciudad || null,
+    estado: estado || null,
     telefono: telefono || null,
     whatsapp: whatsapp || null,
     horario: horario || null,
