@@ -458,7 +458,7 @@ function renderNegocios(){
     return `
       <article class="business-card ${n.destacado?"business-featured":""}">
         ${n.destacado?'<div class="business-badge">⭐ DESTACADO</div>':""}
-        ${n.imagen?`<img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img">`:`<div class="business-img business-noimg">🏪</div>`}
+        ${n.imagen?`<img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img business-clickable" onclick="abrirImagenNegocio('${esc(n.imagen)}','${esc(n.nombre)}')">`:`<div class="business-img business-noimg">🏪</div>`}
         <div class="business-info">
           <div class="business-category">${esc(n.categoria)}</div>
           <h3>${esc(n.nombre)}</h3>
@@ -478,6 +478,25 @@ function renderNegocios(){
         </div>
       </article>`;
   }).join("");
+}
+
+
+function abrirImagenNegocio(url, nombre){
+  if(!url) return;
+  const modal=$("businessImageModal");
+  const img=$("businessImageLarge");
+  img.src=url;
+  img.alt=nombre || "Imagen del negocio";
+  modal.classList.remove("hidden");
+  document.body.classList.add("business-image-open");
+}
+
+function cerrarImagenNegocio(){
+  const modal=$("businessImageModal");
+  const img=$("businessImageLarge");
+  modal.classList.add("hidden");
+  img.src="";
+  document.body.classList.remove("business-image-open");
 }
 
 function limpiarFormularioNegocio(){
@@ -742,6 +761,9 @@ function cerrar(){
 $("buscar").oninput=render;
 $("buscarNegocio").oninput=renderNegocios;
 $("filtroCategoria").onchange=renderNegocios;
+$("closeBusinessImage").onclick=cerrarImagenNegocio;
+$("businessImageModal").onclick=(e)=>{if(e.target.id==="businessImageModal")cerrarImagenNegocio();};
+document.addEventListener("keydown",(e)=>{if(e.key==="Escape")cerrarImagenNegocio();});
 $("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;
