@@ -723,7 +723,7 @@ function limpiarRegistroNegocio(limpiarNumero=true){
   mensaje("registroNegocioMsg","");
 }
 
-async function enviarRegistroPorWhatsApp(){
+function enviarRegistroPorWhatsApp(){
   const nombre=$("regNombre").value.trim();
   const categoria=$("regCategoria").value.trim();
   const descripcion=$("regDescripcion").value.trim();
