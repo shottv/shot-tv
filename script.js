@@ -680,7 +680,7 @@ function abrirNegocios(e){
   cargarNegocios();
 }
 
-const WHATSAPP_REGISTRO_NEGOCIO = "52561273144";
+const WHATSAPP_REGISTRO_NEGOCIO = "526561273144";
 
 function limpiarRegistroNegocio(){
   ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{
