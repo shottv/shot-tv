@@ -1,9 +1,0 @@
-MiCine - versión corregida
-
-Esta versión conserva el diseño, Supabase y el reproductor.
-
-Comportamiento:
-- El catálogo público no muestra el formulario de administración hasta pulsar "Administrar".
-- Si no hay sesión, se muestra el inicio de sesión.
-- Si hay sesión de administrador, se muestra únicamente el panel de administración.
-- Los campos de correo y contraseña se ocultan cuando el administrador ya inició sesión.
