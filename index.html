@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shot TV</title>
+<!-- Google Analytics 4 - Shot TV -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7S4QH58LL6"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7S4QH58LL6');
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -111,7 +119,10 @@
 
     <div id="adminPanel" class="hidden">
       <div class="adminTop">
-        <div></div>
+        <div>
+          <h2>➕ Agregar película</h2>
+          <p class="subtexto">Administrador conectado.</p>
+        </div>
         <button id="logoutBtn" class="logout">CERRAR SESIÓN</button>
       </div>
 

@@ -929,6 +929,17 @@ function abrirCatalogo(e){
 function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
+
+  // Registrar la apertura/reproducción de la película en Google Analytics.
+  if(typeof window.gtag === "function"){
+    window.gtag("event","movie_play",{
+      movie_id:String(m.id),
+      movie_title:String(m.titulo||""),
+      movie_year:String(m.año||""),
+      movie_genre:String(m.genero||"")
+    });
+  }
+
   $("ptitulo").textContent=m.titulo;
   $("player").src=m.url;
   $("modal").classList.add("open");
