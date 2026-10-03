@@ -91,6 +91,7 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .business-admin-actions button{flex:1}
 }
 
+/* Imagen de negocio: abrir directamente en el navegador, compatible con móvil */
 .business-image-link{display:block;text-decoration:none;cursor:pointer}
 .business-image-link .business-img{transition:transform .15s ease,opacity .15s ease}
 .business-image-link:active .business-img{transform:scale(.98);opacity:.9}
