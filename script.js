@@ -415,8 +415,6 @@ function alternarPantallaCompleta(){
 }
 
 function cerrar(){
-  $("modal").classList.remove("custom-fullscreen");
-  document.body.style.overflow="";
   $("player").pause();
   $("player").removeAttribute("src");
   $("player").load();
@@ -437,7 +435,6 @@ $("cerrar").onclick=cerrar;
 $("modal").onclick=e=>{if(e.target===$("modal"))cerrar()};
 cargarPublicidad();
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape"&&$("modal").classList.contains("custom-fullscreen")){ alternarPantallaCompleta(); return; }
   if(e.key==="Escape"&&$("modal").classList.contains("open"))cerrar();
   if(e.key==="Escape"&&$("editModal").classList.contains("open"))cerrarEdicion();
   if(e.key==="Enter"&&document.activeElement===$("loginPassword"))iniciarSesion();
