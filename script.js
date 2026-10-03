@@ -158,6 +158,24 @@ async function agregarPelicula(){
   const {data:publicData}=db.storage.from("posters").getPublicUrl(path);
   const portada=publicData.publicUrl;
 
+  const ponerPrimero = $("ponerPrimero").checked;
+
+  // Si se elige "al principio", desplazamos una posición todas las películas
+  // y colocamos la nueva en la posición 1.
+  if(ponerPrimero){
+    const ordenadas=[...peliculas].sort((a,b)=>(Number(a.orden)||0)-(Number(b.orden)||0));
+    for(const m of ordenadas){
+      const nuevoOrden=(Number(m.orden)||0)+1;
+      const {error:e}=await db.from("peliculas").update({orden:nuevoOrden}).eq("id",m.id);
+      if(e){
+        console.error(e);
+        btn.disabled=false;
+        mensaje("adminMsg","No se pudo preparar el nuevo orden: "+e.message,true);
+        return;
+      }
+    }
+  }
+
   const maxOrden = peliculas.reduce((max,m)=>Math.max(max, Number(m.orden)||0),0);
   const {error}=await db.from("peliculas").insert({
     titulo,
@@ -165,7 +183,7 @@ async function agregarPelicula(){
     genero,
     portada,
     url,
-    orden:maxOrden+1
+    orden:ponerPrimero ? 1 : maxOrden+1
   });
 
   if(error){
@@ -181,6 +199,7 @@ async function agregarPelicula(){
   $("genero").value="";
   $("portada").value="";
   $("url").value="";
+  $("ponerPrimero").checked=true;
   btn.disabled=false;
   mensaje("adminMsg","Película agregada correctamente. 🎬");
   await cargarPeliculas();

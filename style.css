@@ -44,3 +44,5 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .modal.custom-fullscreen .fullscreen-btn{right:58px;top:12px}
 .modal.custom-fullscreen .close{right:12px;top:12px}
 @media(max-width:760px){.fullscreen-btn{right:56px;top:10px}.modal.custom-fullscreen .playerbox video{width:100vw;height:100dvh}}
+
+.add-first-option{display:flex;flex-direction:row;align-items:center;gap:9px;cursor:pointer}.add-first-option input{width:18px;height:18px;margin:0}
