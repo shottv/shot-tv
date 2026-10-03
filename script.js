@@ -683,16 +683,16 @@ function abrirNegocios(e){
 const WHATSAPP_REGISTRO_NEGOCIO = "526561273144";
 
 function generarNumeroRegistro(){
-  // Código corto y fácil de dictar/guardar: STV-XXXXXX
-  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  // Identificador corto y único para seguimiento: STV-XXXXXX
+  // Se evita reutilizar un código ya generado en este dispositivo.
+  const usados=JSON.parse(localStorage.getItem("shotTvRegistros")||"[]");
   let codigo="";
-  if(window.crypto && crypto.getRandomValues){
-    const valores=new Uint32Array(6);
-    crypto.getRandomValues(valores);
-    for(let i=0;i<6;i++) codigo+=chars[valores[i]%chars.length];
-  }else{
-    for(let i=0;i<6;i++) codigo+=chars[Math.floor(Math.random()*chars.length)];
-  }
+  do{
+    codigo=Math.random().toString(36).slice(2,8).toUpperCase();
+  }while(usados.includes(codigo));
+  usados.push(codigo);
+  if(usados.length>200) usados.splice(0,usados.length-200);
+  localStorage.setItem("shotTvRegistros",JSON.stringify(usados));
   return `STV-${codigo}`;
 }
 
@@ -755,16 +755,16 @@ async function enviarRegistroPorWhatsApp(){
   const mapa=$("regMapa").value.trim();
   const file=$("regImagen")?.files?.[0];
   const numeroRegistro=$("regNumero")?.value.trim() || generarNumeroRegistro();
-  $("regNumero").value=numeroRegistro;
 
-  if(!nombre || !descripcion || !file){
-    mensaje("registroNegocioMsg","Completa nombre, descripción y selecciona la imagen del negocio.",true);
-    if(!nombre) $("regNombre").focus();
-    else if(!descripcion) $("regDescripcion").focus();
-    else $("regImagen").click();
+  if($("regNumero")) $("regNumero").value=numeroRegistro;
+
+  if(!nombre || !descripcion){
+    mensaje("registroNegocioMsg","Completa el nombre y la descripción del negocio.",true);
+    if(!nombre) $("regNombre").focus(); else $("regDescripcion").focus();
     return;
   }
-  if(!file.type.startsWith("image/")){
+
+  if(file && !file.type.startsWith("image/")){
     mensaje("registroNegocioMsg","La imagen seleccionada no es válida.",true);
     return;
   }
@@ -786,23 +786,45 @@ async function enviarRegistroPorWhatsApp(){
     `*Sitio web:* ${web||"No proporcionado"}`,
     `*Google Maps:* ${mapa||"No proporcionado"}`,
     "",
-    `📸 *Imagen seleccionada:* ${file.name}`
+    file ? `📸 *Imagen seleccionada:* ${file.name}` : "📸 *Imagen:* No proporcionada"
   ].join("\n");
 
-  // En móviles compatibles, este botón comparte texto + imagen y permite elegir WhatsApp.
-  try{
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({title:`${numeroRegistro} — ${nombre}`,text:mensajeWhatsApp,files:[file]});
-      mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} lista para compartir. ✅`,false);
-      return;
-    }
-  }catch(error){
-    if(error?.name==="AbortError") return;
-  }
+  const boton=$("enviarRegistroNegocio");
+  boton.disabled=true;
+  boton.textContent="📲 PREPARANDO WHATSAPP...";
 
-  // Si el navegador no permite compartir archivos, abre WhatsApp directamente con el mensaje.
-  const waUrl="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
-  window.location.href=waUrl;
+  try{
+    // En Android/iPhone, Web Share permite enviar texto + foto desde el mismo gesto del usuario.
+    if(file && navigator.share){
+      try{
+        const datos={title:`Registro ${numeroRegistro}`,text:mensajeWhatsApp};
+        if(navigator.canShare){
+          const puede=navigator.canShare({files:[file]});
+          if(puede) datos.files=[file];
+        }else{
+          datos.files=[file];
+        }
+        await navigator.share(datos);
+        mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} lista para enviar. Selecciona WhatsApp. ✅`);
+        return;
+      }catch(error){
+        if(error && error.name==="AbortError") return;
+        console.warn("Web Share no disponible para archivo:",error);
+      }
+    }
+
+    // Respaldo: abre directamente el chat de Shot TV con el número de registro incluido.
+    const waUrl="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
+    window.location.href=waUrl;
+    setTimeout(()=>{
+      mensaje("registroNegocioMsg",file
+        ? `Solicitud ${numeroRegistro} abierta en WhatsApp. Adjunta la imagen seleccionada (${file.name}) y envía el mensaje. 📸`
+        : `Solicitud ${numeroRegistro} abierta en WhatsApp. ✅`);
+    },900);
+  }finally{
+    boton.disabled=false;
+    boton.textContent="📲 ENVIAR SOLICITUD POR WHATSAPP";
+  }
 }
 
 function abrirCatalogo(e){
