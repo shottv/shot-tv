@@ -1,4 +1,4 @@
-// MiCine conectado a Supabase
+// Shot TV conectado a Supabase
 const SUPABASE_URL = "https://akpsjzcuimlwvehbammq.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
 
