@@ -7,8 +7,6 @@ const $ = id => document.getElementById(id);
 let peliculas = [];
 let usuario = null;
 let peliculaEditando = null;
-let negocios = [];
-let negocioEditando = null;
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -76,8 +74,6 @@ function mostrarAdmin(){
 function abrirAdministracion(e){
   if(e) e.preventDefault();
   const adminSection=$("admin");
-  $("catalogo").classList.add("hidden");
-  $("negocios").classList.add("hidden");
   adminSection.classList.remove("hidden");
   mostrarAdmin();
   history.replaceState(null,"", "#admin");
@@ -400,16 +396,43 @@ async function eliminarPublicidad(ad){
   await cargarPublicidad(); await cargarPublicidadAdmin();
 }
 
+
+// =========================
+// NEGOCIOS
+// =========================
+let negocios = [];
+let negocioEditando = null;
+
+function urlValida(valor){
+  return !valor || /^https?:\/\/\S+$/i.test(valor);
+}
+
+function telefonoHref(valor){
+  return String(valor || "").replace(/[^\d+]/g, "");
+}
+
+function whatsappHref(valor){
+  const limpio = String(valor || "").replace(/\D/g, "");
+  if(!limpio) return "";
+  return limpio.length === 10 ? `https://wa.me/52${limpio}` : `https://wa.me/${limpio}`;
+}
+
+function nombreArchivoNegocio(nombre){
+  return nombre.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-zA-Z0-9._-]+/g,"-")
+    .replace(/^-+|-+$/g,"") || "negocio";
+}
+
 async function cargarNegocios(){
   const {data,error}=await db.from("negocios")
     .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
     .eq("activo",true)
     .order("destacado",{ascending:false})
     .order("created_at",{ascending:false});
+
   if(error){
-    console.warn("No se pudieron cargar negocios:",error);
-    negocios=[];
-    renderNegocios();
+    console.error("Error cargando negocios:", error);
     $("negociosEstado").textContent="No se pudieron cargar los negocios.";
     return;
   }
@@ -418,66 +441,43 @@ async function cargarNegocios(){
 }
 
 function renderNegocios(){
-  const q=String($("buscarNegocio")?.value||"").toLowerCase().trim();
-  const cat=String($("filtroCategoria")?.value||"");
+  const q=($("buscarNegocio")?.value||"").toLowerCase().trim();
+  const cat=$("filtroCategoria")?.value||"";
   const lista=negocios.filter(n=>{
     const texto=[n.nombre,n.categoria,n.descripcion,n.direccion].join(" ").toLowerCase();
     return (!q || texto.includes(q)) && (!cat || n.categoria===cat);
   });
-  $("negociosEstado").textContent=lista.length?`${lista.length} negocio${lista.length===1?"":"s"} disponible${lista.length===1?"":"s"}.`:"No hay negocios para mostrar.";
+
+  $("negociosEstado").textContent=lista.length
+    ? `${lista.length} negocio${lista.length===1?"":"s"} encontrado${lista.length===1?"":"s"}.`
+    : "No hay negocios para mostrar.";
+
   $("negociosGrid").innerHTML=lista.map(n=>{
-    const wa=linkWhatsApp(n.whatsapp);
-    const links=[];
-    if(n.telefono) links.push(`<a class="business-btn" href="tel:${esc(n.telefono)}">📞 Llamar</a>`);
-    if(wa) links.push(`<a class="business-btn" href="${esc(wa)}" target="_blank" rel="noopener">💬 WhatsApp</a>`);
-    if(n.mapa && /^https?:\/\//i.test(n.mapa)) links.push(`<a class="business-btn" href="${esc(n.mapa)}" target="_blank" rel="noopener">📍 Cómo llegar</a>`);
-    if(n.sitio_web && /^https?:\/\//i.test(n.sitio_web)) links.push(`<a class="business-btn" href="${esc(n.sitio_web)}" target="_blank" rel="noopener">🌐 Sitio web</a>`);
-    return `<article class="business-card ${n.destacado?"business-featured":""}">
-      ${n.imagen?`<img class="business-image" src="${esc(n.imagen)}" alt="${esc(n.nombre)}">`:`<div class="business-image business-placeholder">🏪</div>`}
-      <div class="business-info">
-        ${n.destacado?`<div class="business-badge">⭐ DESTACADO</div>`:""}
-        <h3>${esc(n.nombre)}</h3>
-        <div class="business-category">${esc(n.categoria)}</div>
-        ${n.descripcion?`<p>${esc(n.descripcion)}</p>`:""}
-        ${n.direccion?`<div class="business-detail">📍 ${esc(n.direccion)}</div>`:""}
-        ${n.horario?`<div class="business-detail">🕐 ${esc(n.horario)}</div>`:""}
-        ${links.length?`<div class="business-actions">${links.join("")}</div>`:""}
-      </div>
-    </article>`;
+    const wa=whatsappHref(n.whatsapp);
+    const tel=telefonoHref(n.telefono);
+    return `
+      <article class="business-card ${n.destacado?"business-featured":""}">
+        ${n.destacado?'<div class="business-badge">⭐ DESTACADO</div>':""}
+        ${n.imagen?`<img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img">`:`<div class="business-img business-noimg">🏪</div>`}
+        <div class="business-info">
+          <div class="business-category">${esc(n.categoria)}</div>
+          <h3>${esc(n.nombre)}</h3>
+          ${n.descripcion?`<p>${esc(n.descripcion)}</p>`:""}
+          ${n.direccion?`<div class="business-line">📍 ${esc(n.direccion)}</div>`:""}
+          ${n.horario?`<div class="business-line">🕐 ${esc(n.horario)}</div>`:""}
+          <div class="business-actions">
+            ${wa?`<a class="business-btn whatsapp" href="${wa}" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>`:""}
+            ${tel?`<a class="business-btn" href="tel:${esc(tel)}">📞 Llamar</a>`:""}
+            ${n.mapa?`<a class="business-btn" href="${esc(n.mapa)}" target="_blank" rel="noopener noreferrer">📍 Cómo llegar</a>`:""}
+          </div>
+          <div class="business-social">
+            ${n.facebook?`<a href="${esc(n.facebook)}" target="_blank" rel="noopener noreferrer">Facebook</a>`:""}
+            ${n.instagram?`<a href="${esc(n.instagram)}" target="_blank" rel="noopener noreferrer">Instagram</a>`:""}
+            ${n.sitio_web?`<a href="${esc(n.sitio_web)}" target="_blank" rel="noopener noreferrer">Sitio web</a>`:""}
+          </div>
+        </div>
+      </article>`;
   }).join("");
-}
-
-function linkWhatsApp(valor){
-  const v=String(valor||"").trim();
-  if(!v)return "";
-  if(/^https?:\/\//i.test(v))return v;
-  const digits=v.replace(/\D/g,"");
-  if(!digits)return "";
-  const numero=digits.length===10?"52"+digits:digits;
-  return `https://wa.me/${numero}`;
-}
-
-function validarUrlOpcional(valor){
-  return !valor || /^https?:\/\//i.test(valor);
-}
-
-function abrirNegocios(e){
-  if(e)e.preventDefault();
-  $("catalogo").classList.add("hidden");
-  $("admin").classList.add("hidden");
-  $("negocios").classList.remove("hidden");
-  history.replaceState(null,"","#negocios");
-  window.scrollTo({top:0,behavior:"smooth"});
-  cargarNegocios();
-}
-
-function mostrarCatalogo(e){
-  if(e)e.preventDefault();
-  $("negocios").classList.add("hidden");
-  $("admin").classList.add("hidden");
-  $("catalogo").classList.remove("hidden");
-  history.replaceState(null,"","#catalogo");
-  window.scrollTo({top:0,behavior:"smooth"});
 }
 
 function limpiarFormularioNegocio(){
@@ -492,7 +492,7 @@ function limpiarFormularioNegocio(){
   $("negHorario").value="";
   $("negFacebook").value="";
   $("negInstagram").value="";
-  $("negSitio").value="";
+  $("negWeb").value="";
   $("negMapa").value="";
   $("negActivo").checked=true;
   $("negDestacado").checked=false;
@@ -504,61 +504,62 @@ async function cargarNegociosAdmin(){
   if(!usuario)return;
   const {data,error}=await db.from("negocios")
     .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
-    .order("destacado",{ascending:false}).order("created_at",{ascending:false});
+    .order("created_at",{ascending:false});
+
   if(error){
-    $("negociosAdminLista").innerHTML=`<div class="ad-empty">No se pudieron consultar los negocios: ${esc(error.message)}</div>`;
+    console.error("Error cargando negocios para admin:",error);
+    mensaje("negocioAdminMsg","No se pudieron consultar los negocios: "+error.message,true);
     return;
   }
+
   const lista=data||[];
-  $("negociosAdminLista").innerHTML=lista.length?lista.map(n=>`
-    <div class="business-admin-item">
-      ${n.imagen?`<img src="${esc(n.imagen)}" alt="">`:`<div class="business-admin-thumb">🏪</div>`}
-      <div class="business-admin-main">
+  $("negociosAdminLista").innerHTML=lista.length ? lista.map(n=>`
+    <div class="business-admin-row">
+      ${n.imagen?`<img src="${esc(n.imagen)}" alt="">`:`<div class="business-admin-noimg">🏪</div>`}
+      <div class="business-admin-data">
         <strong>${esc(n.nombre)}</strong>
         <span>${esc(n.categoria)} · ${n.activo?"ACTIVO":"INACTIVO"}${n.destacado?" · ⭐ DESTACADO":""}</span>
       </div>
-      <button class="edit" onclick="editarNegocio(${Number(n.id)})">Editar</button>
-      <button class="delete" onclick="eliminarNegocio(${Number(n.id)})">Eliminar</button>
-    </div>`).join(""):"<div class=\"ad-empty\">Todavía no hay negocios.</div>";
+      <div class="business-admin-actions">
+        <button class="edit" onclick="editarNegocio(${Number(n.id)})">Editar</button>
+        <button class="delete" onclick="eliminarNegocio(${Number(n.id)})">Eliminar</button>
+      </div>
+    </div>`).join("") : '<div class="ad-empty">No hay negocios registrados.</div>';
 }
 
 function editarNegocio(id){
   if(!usuario)return;
-  const n=negocios.find(x=>Number(x.id)===Number(id));
-  if(!n){
-    db.from("negocios").select("*").eq("id",id).single().then(({data,error})=>{
-      if(!error&&data) llenarFormularioNegocio(data);
-    });
-    return;
-  }
-  llenarFormularioNegocio(n);
-}
-
-function llenarFormularioNegocio(n){
-  negocioEditando=n;
-  $("negNombre").value=n.nombre||"";
-  $("negCategoria").value=n.categoria||"Otros";
-  $("negImagen").value="";
-  $("negDescripcion").value=n.descripcion||"";
-  $("negDireccion").value=n.direccion||"";
-  $("negTelefono").value=n.telefono||"";
-  $("negWhatsapp").value=n.whatsapp||"";
-  $("negHorario").value=n.horario||"";
-  $("negFacebook").value=n.facebook||"";
-  $("negInstagram").value=n.instagram||"";
-  $("negSitio").value=n.sitio_web||"";
-  $("negMapa").value=n.mapa||"";
-  $("negActivo").checked=!!n.activo;
-  $("negDestacado").checked=!!n.destacado;
-  $("guardarNegocio").textContent="GUARDAR CAMBIOS";
-  $("cancelarNegocio").classList.remove("hidden");
-  document.getElementById("negocios").scrollIntoView({behavior:"smooth",block:"start"});
+  const {data}= {data: null};
+  // Se consulta por id para no depender de la lista pública de activos.
+  db.from("negocios").select("*").eq("id",id).single().then(({data,error})=>{
+    if(error){mensaje("negocioAdminMsg","No se pudo abrir el negocio: "+error.message,true);return;}
+    negocioEditando=data;
+    $("negNombre").value=data.nombre||"";
+    $("negCategoria").value=data.categoria||"Comida";
+    $("negImagen").value="";
+    $("negDescripcion").value=data.descripcion||"";
+    $("negDireccion").value=data.direccion||"";
+    $("negTelefono").value=data.telefono||"";
+    $("negWhatsapp").value=data.whatsapp||"";
+    $("negHorario").value=data.horario||"";
+    $("negFacebook").value=data.facebook||"";
+    $("negInstagram").value=data.instagram||"";
+    $("negWeb").value=data.sitio_web||"";
+    $("negMapa").value=data.mapa||"";
+    $("negActivo").checked=!!data.activo;
+    $("negDestacado").checked=!!data.destacado;
+    $("guardarNegocio").textContent="GUARDAR CAMBIOS DEL NEGOCIO";
+    $("cancelarNegocio").classList.remove("hidden");
+    $("negocioAdminMsg").textContent="";
+    $("negNombre").scrollIntoView({behavior:"smooth",block:"center"});
+  });
 }
 
 async function guardarNegocio(){
   if(!usuario){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
+
   const nombre=$("negNombre").value.trim();
-  const categoria=$("negCategoria").value;
+  const categoria=$("negCategoria").value.trim();
   const descripcion=$("negDescripcion").value.trim();
   const direccion=$("negDireccion").value.trim();
   const telefono=$("negTelefono").value.trim();
@@ -566,31 +567,52 @@ async function guardarNegocio(){
   const horario=$("negHorario").value.trim();
   const facebook=$("negFacebook").value.trim();
   const instagram=$("negInstagram").value.trim();
-  const sitio_web=$("negSitio").value.trim();
+  const sitio_web=$("negWeb").value.trim();
   const mapa=$("negMapa").value.trim();
   const activo=$("negActivo").checked;
   const destacado=$("negDestacado").checked;
   const file=$("negImagen").files[0];
 
-  if(!nombre){mensaje("negocioAdminMsg","Escribe el nombre del negocio.",true);return;}
-  for(const [valor,nombreCampo] of [[facebook,"Facebook"],[instagram,"Instagram"],[sitio_web,"Sitio web"],[mapa,"Google Maps"]]){
-    if(!validarUrlOpcional(valor)){mensaje("negocioAdminMsg",`${nombreCampo} debe comenzar con http:// o https://.`,true);return;}
+  if(!nombre||!categoria){
+    mensaje("negocioAdminMsg","Completa nombre y categoría.",true);
+    return;
   }
-  if(file && !file.type.startsWith("image/")){mensaje("negocioAdminMsg","La imagen debe ser un archivo de imagen.",true);return;}
 
-  const btn=$("guardarNegocio"); btn.disabled=true; mensaje("negocioAdminMsg",negocioEditando?"Guardando cambios...":"Subiendo imagen y guardando negocio...");
+  for(const [campo,valor] of [["Facebook",facebook],["Instagram",instagram],["Sitio web",sitio_web],["Google Maps",mapa]]){
+    if(valor && !urlValida(valor)){
+      mensaje("negocioAdminMsg",`${campo} debe comenzar con http:// o https://.`,true);
+      return;
+    }
+  }
+
+  if(file && !file.type.startsWith("image/")){
+    mensaje("negocioAdminMsg","La imagen del negocio debe ser una imagen.",true);
+    return;
+  }
+
+  const btn=$("guardarNegocio");
+  btn.disabled=true;
+  mensaje("negocioAdminMsg",negocioEditando?"Guardando cambios...":"Subiendo imagen y guardando negocio...");
+
   let imagen=negocioEditando?.imagen||null;
   let nuevoPath=null;
 
   if(file){
     const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
-    nuevoPath=`${crypto.randomUUID()}-${nombreArchivoSeguro(file.name)}.${ext}`;
+    nuevoPath=`${crypto.randomUUID()}-${nombreArchivoNegocio(file.name)}.${ext}`;
+
     const upload=await db.storage.from("negocios").upload(nuevoPath,file,{cacheControl:"3600",upsert:false});
-    if(upload.error){btn.disabled=false;mensaje("negocioAdminMsg","No se pudo subir la imagen: "+upload.error.message,true);return;}
+    if(upload.error){
+      console.error(upload.error);
+      btn.disabled=false;
+      mensaje("negocioAdminMsg","No se pudo subir la imagen: "+upload.error.message,true);
+      return;
+    }
     imagen=db.storage.from("negocios").getPublicUrl(nuevoPath).data.publicUrl;
   }
 
   const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
+
   let error=null;
   if(negocioEditando){
     ({error}=await db.from("negocios").update(payload).eq("id",negocioEditando.id));
@@ -599,15 +621,22 @@ async function guardarNegocio(){
   }
 
   if(error){
-    if(nuevoPath)await db.storage.from("negocios").remove([nuevoPath]);
-    btn.disabled=false; mensaje("negocioAdminMsg","No se pudo guardar el negocio: "+error.message,true);return;
+    if(nuevoPath) await db.storage.from("negocios").remove([nuevoPath]);
+    console.error(error);
+    btn.disabled=false;
+    mensaje("negocioAdminMsg","No se pudo guardar el negocio: "+error.message,true);
+    return;
   }
 
-  if(file && negocioEditando?.imagen){
+  // Si reemplazamos imagen, intentar eliminar la anterior.
+  if(negocioEditando && file && negocioEditando.imagen){
     try{
       const marker="/storage/v1/object/public/negocios/";
       const pos=String(negocioEditando.imagen).indexOf(marker);
-      if(pos>=0){const oldPath=decodeURIComponent(String(negocioEditando.imagen).slice(pos+marker.length));if(oldPath)await db.storage.from("negocios").remove([oldPath]);}
+      if(pos>=0){
+        const oldPath=decodeURIComponent(String(negocioEditando.imagen).slice(pos+marker.length));
+        if(oldPath) await db.storage.from("negocios").remove([oldPath]);
+      }
     }catch(e){console.warn("No se pudo limpiar la imagen anterior:",e);}
   }
 
@@ -620,17 +649,43 @@ async function guardarNegocio(){
 
 async function eliminarNegocio(id){
   if(!usuario)return;
-  const {data,error}=await db.from("negocios").select("*").eq("id",id).single();
-  if(error||!data)return;
+  const {data,error:readError}=await db.from("negocios").select("id,nombre,imagen").eq("id",id).single();
+  if(readError){alert("No se pudo consultar el negocio: "+readError.message);return;}
   if(!confirm(`¿Eliminar "${data.nombre}"?`))return;
-  const {error:delError}=await db.from("negocios").delete().eq("id",id);
-  if(delError){alert("No se pudo eliminar el negocio: "+delError.message);return;}
+
+  const {error}=await db.from("negocios").delete().eq("id",id);
+  if(error){alert("No se pudo eliminar el negocio: "+error.message);return;}
+
   try{
-    const marker="/storage/v1/object/public/negocios/",pos=String(data.imagen||"").indexOf(marker);
-    if(pos>=0){const path=decodeURIComponent(String(data.imagen).slice(pos+marker.length));if(path)await db.storage.from("negocios").remove([path]);}
+    const marker="/storage/v1/object/public/negocios/";
+    const pos=String(data.imagen||"").indexOf(marker);
+    if(pos>=0){
+      const path=decodeURIComponent(String(data.imagen).slice(pos+marker.length));
+      if(path) await db.storage.from("negocios").remove([path]);
+    }
   }catch(e){console.warn("No se pudo limpiar la imagen:",e);}
+
+  mensaje("negocioAdminMsg","Negocio eliminado.");
   await cargarNegocios();
   await cargarNegociosAdmin();
+}
+
+function abrirNegocios(e){
+  if(e)e.preventDefault();
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.add("hidden");
+  $("negocios").classList.remove("hidden");
+  history.replaceState(null,"","#negocios");
+  $("negocios").scrollIntoView({behavior:"smooth",block:"start"});
+  cargarNegocios();
+}
+
+function abrirCatalogo(e){
+  if(e)e.preventDefault();
+  $("negocios").classList.add("hidden");
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.remove("hidden");
+  history.replaceState(null,"","#catalogo");
 }
 
 
@@ -653,6 +708,8 @@ function alternarPantallaCompleta(){
 }
 
 function cerrar(){
+  $("modal").classList.remove("custom-fullscreen");
+  document.body.style.overflow="";
   $("player").pause();
   $("player").removeAttribute("src");
   $("player").load();
@@ -662,22 +719,25 @@ function cerrar(){
 $("buscar").oninput=render;
 $("buscarNegocio").oninput=renderNegocios;
 $("filtroCategoria").onchange=renderNegocios;
-$("catalogoLink").onclick=mostrarCatalogo;
+$("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;
+
 $("loginBtn").onclick=iniciarSesion;
 $("logoutBtn").onclick=cerrarSesion;
 $("agregar").onclick=agregarPelicula;
 $("guardarEdicion").onclick=guardarEdicion;
 $("guardarAd").onclick=guardarPublicidad;
 $("guardarNegocio").onclick=guardarNegocio;
-$("cancelarNegocio").onclick=limpiarFormularioNegocio;
+$("cancelarNegocio").onclick=()=>{limpiarFormularioNegocio();mensaje("negocioAdminMsg","");};
 $("cerrarEdicion").onclick=cerrarEdicion;
 $("editModal").onclick=e=>{if(e.target===$("editModal"))cerrarEdicion()};
 $("cerrar").onclick=cerrar;
 $("modal").onclick=e=>{if(e.target===$("modal"))cerrar()};
 cargarPublicidad();
+cargarNegocios();
 document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("modal").classList.contains("custom-fullscreen")){ alternarPantallaCompleta(); return; }
   if(e.key==="Escape"&&$("modal").classList.contains("open"))cerrar();
   if(e.key==="Escape"&&$("editModal").classList.contains("open"))cerrarEdicion();
   if(e.key==="Enter"&&document.activeElement===$("loginPassword"))iniciarSesion();
@@ -687,17 +747,9 @@ db.auth.getSession().then(({data})=>{
   usuario=data.session?.user||null;
   mostrarAdmin();
   cargarPeliculas();
-  cargarNegocios();
 });
 
 db.auth.onAuthStateChange((_event,session)=>{
   usuario=session?.user||null;
   mostrarAdmin();
-  if(usuario)cargarNegociosAdmin();
 });
-
-if(location.hash==="#negocios"){
-  setTimeout(()=>abrirNegocios(),300);
-}else if(location.hash==="#admin"){
-  setTimeout(()=>abrirAdministracion(),300);
-}

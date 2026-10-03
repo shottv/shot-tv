@@ -27,15 +27,24 @@
 
   <section id="negocios" class="business-section hidden">
     <h1>🏪 Negocios</h1>
-    <p class="subtexto business-intro">Encuentra negocios y servicios de tu comunidad.</p>
+    <p class="subtexto">Encuentra negocios y servicios de tu comunidad.</p>
     <div class="business-tools">
       <input id="buscarNegocio" type="search" placeholder="🔎 Buscar negocio...">
       <select id="filtroCategoria">
         <option value="">Todas las categorías</option>
-        <option>Comida</option><option>Barberías</option><option>Estéticas</option>
-        <option>Tiendas</option><option>Automotriz</option><option>Servicios</option>
-        <option>Ropa</option><option>Tecnología</option><option>Mascotas</option>
-        <option>Educación</option><option>Salud</option><option>Otros</option>
+        <option>Comida</option>
+        <option>Barberías</option>
+        <option>Belleza</option>
+        <option>Tiendas</option>
+        <option>Automotriz</option>
+        <option>Servicios</option>
+        <option>Hogar</option>
+        <option>Ropa</option>
+        <option>Tecnología</option>
+        <option>Mascotas</option>
+        <option>Educación</option>
+        <option>Salud</option>
+        <option>Otros</option>
       </select>
     </div>
     <div id="negociosEstado" class="estado">Cargando negocios...</div>
@@ -96,24 +105,38 @@
           <label>Nombre del negocio<input id="negNombre" type="text"></label>
           <label>Categoría
             <select id="negCategoria">
-              <option>Comida</option><option>Barberías</option><option>Estéticas</option>
-              <option>Tiendas</option><option>Automotriz</option><option>Servicios</option>
-              <option>Ropa</option><option>Tecnología</option><option>Mascotas</option>
-              <option>Educación</option><option>Salud</option><option>Otros</option>
+              <option>Comida</option>
+              <option>Barberías</option>
+              <option>Belleza</option>
+              <option>Tiendas</option>
+              <option>Automotriz</option>
+              <option>Servicios</option>
+              <option>Hogar</option>
+              <option>Ropa</option>
+              <option>Tecnología</option>
+              <option>Mascotas</option>
+              <option>Educación</option>
+              <option>Salud</option>
+              <option>Otros</option>
             </select>
           </label>
           <label>Imagen del negocio<input id="negImagen" type="file" accept="image/*"></label>
-          <label class="full">Descripción<textarea id="negDescripcion" rows="3" placeholder="Describe brevemente el negocio..."></textarea></label>
+
+          <label class="full">Descripción
+            <textarea id="negDescripcion" rows="3" placeholder="Describe brevemente el negocio..."></textarea>
+          </label>
+
           <label>Dirección<input id="negDireccion" type="text"></label>
           <label>Teléfono<input id="negTelefono" type="tel"></label>
-          <label>WhatsApp<input id="negWhatsapp" type="tel" placeholder="6561234567"></label>
-          <label>Horario<input id="negHorario" type="text" placeholder="Lun-Sáb 9:00-20:00"></label>
+          <label>WhatsApp<input id="negWhatsapp" type="tel"></label>
+          <label>Horario<input id="negHorario" type="text" placeholder="Lunes a sábado de 9 a 6"></label>
           <label>Facebook<input id="negFacebook" type="url" placeholder="https://facebook.com/..."></label>
           <label>Instagram<input id="negInstagram" type="url" placeholder="https://instagram.com/..."></label>
-          <label>Sitio web<input id="negSitio" type="url" placeholder="https://..."></label>
+          <label>Sitio web<input id="negWeb" type="url" placeholder="https://..."></label>
           <label>Google Maps<input id="negMapa" type="url" placeholder="https://maps.google.com/..."></label>
           <label class="ad-check"><span>Negocio activo</span><input id="negActivo" type="checkbox" checked></label>
           <label class="ad-check"><span>⭐ Destacar negocio</span><input id="negDestacado" type="checkbox"></label>
+
           <button id="guardarNegocio">AGREGAR NEGOCIO</button>
           <button id="cancelarNegocio" class="secondary-btn hidden" type="button">CANCELAR EDICIÓN</button>
         </div>
@@ -145,8 +168,9 @@
 <div id="modal" class="modal">
   <div class="playerbox">
     <button id="cerrar" class="close">✕</button>
+    <button id="pantalla" class="fullscreen-btn" type="button" title="Pantalla completa">⛶</button>
     <h2 id="ptitulo"></h2>
-    <video id="player" controls autoplay playsinline preload="metadata"></video>
+    <video id="player" controls controlsList="nofullscreen" autoplay playsinline preload="metadata"></video>
   </div>
 </div>
 
