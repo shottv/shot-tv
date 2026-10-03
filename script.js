@@ -723,7 +723,9 @@ function limpiarRegistroNegocio(limpiarNumero=true){
   mensaje("registroNegocioMsg","");
 }
 
-function enviarRegistroPorWhatsApp(){
+async function enviarRegistroPorWhatsApp(){
+  const boton=$("enviarRegistroNegocio");
+  const textoOriginal=boton?.textContent||"📲 ENVIAR SOLICITUD POR WHATSAPP";
   const nombre=$("regNombre").value.trim();
   const categoria=$("regCategoria").value.trim();
   const descripcion=$("regDescripcion").value.trim();
@@ -765,7 +767,64 @@ function enviarRegistroPorWhatsApp(){
     `📸 *IMPORTANTE:* ENVIE SU IMAGEN DE SU NEGOCIO CON EL NUMERO DE REGISTRO ${numeroRegistro}`
   ].join("\n");
 
-  const url="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
+  // Primero guardamos la solicitud en Supabase para que quede registrada
+  // aunque el cliente después cierre WhatsApp.
+  if(boton){
+    boton.disabled=true;
+    boton.textContent="⏳ GUARDANDO SOLICITUD...";
+  }
+
+  const datosSolicitud={
+    numero_registro: numeroRegistro,
+    nombre,
+    categoria,
+    descripcion,
+    direccion: direccion || null,
+    telefono: telefono || null,
+    whatsapp: whatsapp || null,
+    horario: horario || null,
+    facebook: facebook || null,
+    instagram: instagram || null,
+    sitio_web: web || null,
+    mapa: mapa || null,
+    estado: "pendiente"
+  };
+
+  let resultado=await db.from("solicitudes_negocios").insert(datosSolicitud);
+
+  // Si por una coincidencia extremadamente rara el código ya existe,
+  // generamos otro y reintentamos una sola vez.
+  if(resultado.error && resultado.error.code==="23505"){
+    const nuevoNumero=generarNumeroRegistro();
+    numeroRegistro=nuevoNumero;
+    if($("regNumero")) $("regNumero").value=numeroRegistro;
+    datosSolicitud.numero_registro=numeroRegistro;
+    resultado=await db.from("solicitudes_negocios").insert(datosSolicitud);
+  }
+
+  if(resultado.error){
+    console.error("Error guardando solicitud:",resultado.error);
+    mensaje("registroNegocioMsg","No se pudo guardar la solicitud. Verifica tu conexión e inténtalo nuevamente.",true);
+    if(boton){
+      boton.disabled=false;
+      boton.textContent=textoOriginal;
+    }
+    return;
+  }
+
+  // El mismo número guardado en Supabase se envía a WhatsApp.
+  const mensajeFinal=mensajeWhatsApp.replaceAll(
+    /\*Número de registro:\*:.*/g,
+    `*Número de registro:* ${numeroRegistro}`
+  ).replaceAll(
+    /NUMERO DE REGISTRO (?:STV-[A-Z0-9]{6})/g,
+    `NUMERO DE REGISTRO ${numeroRegistro}`
+  );
+
+  const url="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeFinal);
+  if(boton){
+    boton.textContent="✅ SOLICITUD GUARDADA — ABRIENDO WHATSAPP...";
+  }
   window.location.href=url;
 }
 
