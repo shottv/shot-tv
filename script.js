@@ -719,26 +719,8 @@ function cerrarRegistroNegocio(){
 function limpiarRegistroNegocio(limpiarNumero=true){
   ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
   if($("regCategoria")) $("regCategoria").value="Comida";
-  if($("regImagen")) $("regImagen").value="";
-  if($("regImagenPreview")){ $("regImagenPreview").innerHTML=""; $("regImagenPreview").classList.add("hidden"); }
   if(limpiarNumero && $("regNumero")) $("regNumero").value="";
   mensaje("registroNegocioMsg","");
-}
-
-function vistaPreviaImagenRegistro(){
-  const file=$("regImagen")?.files?.[0];
-  const box=$("regImagenPreview");
-  if(!box)return;
-  if(!file){ box.innerHTML=""; box.classList.add("hidden"); return; }
-  if(!file.type.startsWith("image/")){
-    $("regImagen").value="";
-    box.innerHTML=""; box.classList.add("hidden");
-    mensaje("registroNegocioMsg","Selecciona una imagen válida.",true);
-    return;
-  }
-  const url=URL.createObjectURL(file);
-  box.innerHTML=`<img src="${url}" alt="Vista previa de la imagen del negocio"><span>📸 ${esc(file.name)}</span>`;
-  box.classList.remove("hidden");
 }
 
 async function enviarRegistroPorWhatsApp(){
@@ -753,7 +735,6 @@ async function enviarRegistroPorWhatsApp(){
   const instagram=$("regInstagram").value.trim();
   const web=$("regWeb").value.trim();
   const mapa=$("regMapa").value.trim();
-  const file=$("regImagen")?.files?.[0];
   const numeroRegistro=$("regNumero")?.value.trim() || generarNumeroRegistro();
 
   if($("regNumero")) $("regNumero").value=numeroRegistro;
@@ -761,11 +742,6 @@ async function enviarRegistroPorWhatsApp(){
   if(!nombre || !descripcion){
     mensaje("registroNegocioMsg","Completa el nombre y la descripción del negocio.",true);
     if(!nombre) $("regNombre").focus(); else $("regDescripcion").focus();
-    return;
-  }
-
-  if(file && !file.type.startsWith("image/")){
-    mensaje("registroNegocioMsg","La imagen seleccionada no es válida.",true);
     return;
   }
 
@@ -786,45 +762,11 @@ async function enviarRegistroPorWhatsApp(){
     `*Sitio web:* ${web||"No proporcionado"}`,
     `*Google Maps:* ${mapa||"No proporcionado"}`,
     "",
-    file ? `📸 *Imagen seleccionada:* ${file.name}` : "📸 *Imagen:* No proporcionada"
+    `📸 *IMPORTANTE:* ENVIE SU IMAGEN DE SU NEGOCIO CON EL NUMERO DE REGISTRO ${numeroRegistro}`
   ].join("\n");
 
-  const boton=$("enviarRegistroNegocio");
-  boton.disabled=true;
-  boton.textContent="📲 PREPARANDO WHATSAPP...";
-
-  try{
-    // En Android/iPhone, Web Share permite enviar texto + foto desde el mismo gesto del usuario.
-    if(file && navigator.share){
-      try{
-        const datos={title:`Registro ${numeroRegistro}`,text:mensajeWhatsApp};
-        if(navigator.canShare){
-          const puede=navigator.canShare({files:[file]});
-          if(puede) datos.files=[file];
-        }else{
-          datos.files=[file];
-        }
-        await navigator.share(datos);
-        mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} lista para enviar. Selecciona WhatsApp. ✅`);
-        return;
-      }catch(error){
-        if(error && error.name==="AbortError") return;
-        console.warn("Web Share no disponible para archivo:",error);
-      }
-    }
-
-    // Respaldo: abre directamente el chat de Shot TV con el número de registro incluido.
-    const waUrl="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
-    window.location.href=waUrl;
-    setTimeout(()=>{
-      mensaje("registroNegocioMsg",file
-        ? `Solicitud ${numeroRegistro} abierta en WhatsApp. Adjunta la imagen seleccionada (${file.name}) y envía el mensaje. 📸`
-        : `Solicitud ${numeroRegistro} abierta en WhatsApp. ✅`);
-    },900);
-  }finally{
-    boton.disabled=false;
-    boton.textContent="📲 ENVIAR SOLICITUD POR WHATSAPP";
-  }
+  const url="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
+  window.location.href=url;
 }
 
 function abrirCatalogo(e){
@@ -872,7 +814,6 @@ $("adminLink").onclick=abrirAdministracion;
 $("abrirRegistroNegocio").onclick=abrirRegistroNegocio;
 $("cerrarRegistroNegocio").onclick=cerrarRegistroNegocio;
 $("enviarRegistroNegocio").onclick=enviarRegistroPorWhatsApp;
-$("regImagen").onchange=vistaPreviaImagenRegistro;
 
 $("loginBtn").onclick=iniciarSesion;
 $("logoutBtn").onclick=cerrarSesion;

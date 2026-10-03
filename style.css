@@ -136,3 +136,8 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   font-size:1rem;
   max-width:260px;
 }
+
+.registro-numero-label input{max-width:260px;font-weight:800;letter-spacing:.6px}
+.registro-imagen-nota{grid-column:1/-1;padding:12px 14px;border:1px dashed #2b5875;border-radius:10px;background:#0b2032;color:#cbd5e1;font-size:13px;line-height:1.5}
+.registro-imagen-nota strong{color:#fff}
+@media(max-width:700px){.registro-numero-label input{max-width:none}.registro-imagen-nota{grid-column:auto}}
