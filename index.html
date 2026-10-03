@@ -117,6 +117,29 @@
         </div>
         <button id="logoutBtn" class="logout">CERRAR SESIÓN</button>
       </div>
+
+      <div class="solicitudes-dashboard">
+        <div class="solicitudes-dashboard-head">
+          <div>
+            <h2>📊 Control de negocios</h2>
+            <p class="subtexto">Consulta las solicitudes recibidas y el estado de tus negocios.</p>
+          </div>
+          <button id="refrescarSolicitudes" class="secondary-btn" type="button">🔄 ACTUALIZAR</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><span>📲 Solicitudes recibidas</span><strong id="statSolicitudes">0</strong></div>
+          <div class="stat-card pending"><span>⏳ Pendientes</span><strong id="statPendientes">0</strong></div>
+          <div class="stat-card review"><span>🔵 En revisión</span><strong id="statRevision">0</strong></div>
+          <div class="stat-card approved"><span>🟢 Aprobados</span><strong id="statAprobados">0</strong></div>
+          <div class="stat-card published"><span>🏪 Publicados</span><strong id="statPublicados">0</strong></div>
+          <div class="stat-card businesses"><span>🏪 Negocios registrados</span><strong id="statNegocios">0</strong></div>
+        </div>
+        <div id="solicitudesAdminMsg" class="mensaje"></div>
+        <div class="solicitudes-list-wrap">
+          <h3>📋 Solicitudes de negocios</h3>
+          <div id="solicitudesAdminLista" class="solicitudes-admin-list"></div>
+        </div>
+      </div>
       <div class="form">
         <label>Título<input id="titulo" type="text"></label>
         <label>Año<input id="anio" type="number" value="2026"></label>

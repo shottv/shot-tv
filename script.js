@@ -68,7 +68,96 @@ function mostrarAdmin(){
     adminPanel.classList.add("hidden");
   }
   render();
-  if(usuario){ cargarPublicidadAdmin(); cargarNegociosAdmin(); }
+  if(usuario){ cargarPublicidadAdmin(); cargarNegociosAdmin(); cargarControlSolicitudes(); }
+}
+
+function escSolicitud(v){
+  return esc(v==null?"":String(v));
+}
+
+function fechaSolicitud(v){
+  if(!v)return "";
+  try{return new Date(v).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"});}
+  catch{return String(v);}
+}
+
+function etiquetaEstado(estado){
+  return ({pendiente:"⏳ Pendiente",revision:"🔵 En revisión",aprobado:"🟢 Aprobado",rechazado:"🔴 Rechazado",publicado:"🟣 Publicado"})[estado]||estado;
+}
+
+async function cargarControlSolicitudes(){
+  if(!usuario)return;
+  const msg=$("solicitudesAdminMsg");
+  try{
+    const [solRes,negRes]=await Promise.all([
+      db.from("solicitudes_negocios").select("*").order("created_at",{ascending:false}),
+      db.from("negocios").select("id",{count:"exact",head:true})
+    ]);
+    if(solRes.error)throw solRes.error;
+    if(negRes.error)throw negRes.error;
+    const solicitudes=solRes.data||[];
+    const conteo={pendiente:0,revision:0,aprobado:0,rechazado:0,publicado:0};
+    solicitudes.forEach(x=>{if(conteo[x.estado]!==undefined)conteo[x.estado]++;});
+    $("statSolicitudes").textContent=solicitudes.length;
+    $("statPendientes").textContent=conteo.pendiente;
+    $("statRevision").textContent=conteo.revision;
+    $("statAprobados").textContent=conteo.aprobado;
+    $("statPublicados").textContent=conteo.publicado;
+    $("statNegocios").textContent=negRes.count??0;
+    if(!solicitudes.length){
+      $("solicitudesAdminLista").innerHTML='<div class="solicitud-empty">Todavía no hay solicitudes de negocios.</div>';
+      if(msg)msg.textContent="";
+      return;
+    }
+    $("solicitudesAdminLista").innerHTML=solicitudes.map(s=>`
+      <div class="solicitud-admin-row">
+        <div class="solicitud-admin-main">
+          <strong class="solicitud-registro">${escSolicitud(s.numero_registro)}</strong>
+          <strong>${escSolicitud(s.nombre)}</strong>
+          <span>${escSolicitud(s.categoria)}</span>
+          <span>📅 ${escSolicitud(fechaSolicitud(s.created_at))}</span>
+          <select class="solicitud-estado" data-solicitud-id="${escSolicitud(s.id)}" aria-label="Estado de la solicitud ${escSolicitud(s.numero_registro)}">
+            <option value="pendiente" ${s.estado==="pendiente"?"selected":""}>⏳ Pendiente</option>
+            <option value="revision" ${s.estado==="revision"?"selected":""}>🔵 En revisión</option>
+            <option value="aprobado" ${s.estado==="aprobado"?"selected":""}>🟢 Aprobado</option>
+            <option value="rechazado" ${s.estado==="rechazado"?"selected":""}>🔴 Rechazado</option>
+            <option value="publicado" ${s.estado==="publicado"?"selected":""}>🟣 Publicado</option>
+          </select>
+        </div>
+        <div class="solicitud-detalle">
+          <span><b>Descripción:</b> ${escSolicitud(s.descripcion||"No proporcionada")}</span>
+          <span><b>Dirección:</b> ${escSolicitud(s.direccion||"No proporcionada")}</span>
+          <span><b>Teléfono:</b> ${escSolicitud(s.telefono||"No proporcionado")}</span>
+          <span><b>WhatsApp:</b> ${escSolicitud(s.whatsapp||"No proporcionado")}</span>
+          <span><b>Horario:</b> ${escSolicitud(s.horario||"No proporcionado")}</span>
+          <span><b>Facebook:</b> ${escSolicitud(s.facebook||"No proporcionado")}</span>
+          <span><b>Instagram:</b> ${escSolicitud(s.instagram||"No proporcionado")}</span>
+          <span><b>Sitio web:</b> ${escSolicitud(s.sitio_web||"No proporcionado")}</span>
+          <span><b>Google Maps:</b> ${escSolicitud(s.mapa||"No proporcionado")}</span>
+        </div>
+      </div>`).join("");
+    document.querySelectorAll(".solicitud-estado").forEach(sel=>{
+      sel.onchange=()=>actualizarEstadoSolicitud(sel.dataset.solicitudId,sel.value);
+    });
+    if(msg)msg.textContent="";
+  }catch(error){
+    console.error("Error cargando solicitudes:",error);
+    if(msg)mensaje("solicitudesAdminMsg","No se pudieron cargar las solicitudes: "+error.message,true);
+  }
+}
+
+async function actualizarEstadoSolicitud(id,estado){
+  if(!usuario)return;
+  const msg=$("solicitudesAdminMsg");
+  const {error}=await db.from("solicitudes_negocios").update({estado}).eq("id",id);
+  if(error){
+    console.error(error);
+    mensaje("solicitudesAdminMsg","No se pudo actualizar el estado: "+error.message,true);
+    await cargarControlSolicitudes();
+    return;
+  }
+  mensaje("solicitudesAdminMsg",`Estado actualizado: ${etiquetaEstado(estado)}`);
+  await cargarControlSolicitudes();
 }
 
 function abrirAdministracion(e){
@@ -880,6 +969,7 @@ $("agregar").onclick=agregarPelicula;
 $("guardarEdicion").onclick=guardarEdicion;
 $("guardarAd").onclick=guardarPublicidad;
 $("guardarNegocio").onclick=guardarNegocio;
+$("refrescarSolicitudes").onclick=cargarControlSolicitudes;
 $("cancelarNegocio").onclick=()=>{limpiarFormularioNegocio();mensaje("negocioAdminMsg","");};
 $("cerrarEdicion").onclick=cerrarEdicion;
 $("editModal").onclick=e=>{if(e.target===$("editModal"))cerrarEdicion()};

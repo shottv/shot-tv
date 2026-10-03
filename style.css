@@ -141,3 +141,37 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .registro-imagen-nota{grid-column:1/-1;padding:12px 14px;border:1px dashed #2b5875;border-radius:10px;background:#0b2032;color:#cbd5e1;font-size:13px;line-height:1.5}
 .registro-imagen-nota strong{color:#fff}
 @media(max-width:700px){.registro-numero-label input{max-width:none}.registro-imagen-nota{grid-column:auto}}
+
+/* Panel de control de solicitudes de negocios */
+.solicitudes-dashboard{margin:22px 0 8px;padding:18px;background:#071625;border:1px solid #1b2c43;border-radius:12px}
+.solicitudes-dashboard-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:16px}
+.solicitudes-dashboard-head h2{margin:0 0 4px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stat-card{background:#0d1f32;border:1px solid #24405a;border-radius:10px;padding:14px;min-height:78px;display:flex;flex-direction:column;justify-content:space-between}
+.stat-card span{font-size:12px;color:#b9c8d9;font-weight:700}
+.stat-card strong{font-size:28px;line-height:1;margin-top:8px;color:#fff}
+.stat-card.pending{border-color:#6b5a1c}.stat-card.review{border-color:#28537a}.stat-card.approved{border-color:#1c6b45}.stat-card.published{border-color:#3f477d}.stat-card.businesses{border-color:#3b5c79}
+.solicitudes-list-wrap{margin-top:20px}
+.solicitudes-list-wrap h3{margin:0 0 10px}
+.solicitudes-admin-list{display:grid;gap:9px}
+.solicitud-admin-row{background:#0b1827;border:1px solid #1b2c43;border-radius:10px;padding:12px}
+.solicitud-admin-main{display:grid;grid-template-columns:1.1fr 1.5fr .9fr 1fr auto;align-items:center;gap:10px}
+.solicitud-admin-main strong{font-size:14px}.solicitud-admin-main span{font-size:12px;color:#c1cfde}
+.solicitud-registro{color:#7dd3fc!important;font-weight:800!important;letter-spacing:.4px}
+.solicitud-estado{background:#111f32;color:#fff;border:1px solid #29445f;border-radius:7px;padding:8px;font-size:12px}
+.solicitud-detalle{margin-top:9px;padding-top:9px;border-top:1px solid #1b2c43;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 18px;color:#aebdcd;font-size:12px}
+.solicitud-detalle b{color:#e2e8f0}
+.solicitud-empty{padding:18px;text-align:center;color:#94a3b8;border:1px dashed #29445f;border-radius:10px}
+@media(max-width:850px){
+  .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .solicitud-admin-main{grid-template-columns:1fr 1fr}
+  .solicitud-admin-main .solicitud-estado{grid-column:1/-1;width:100%}
+  .solicitud-detalle{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .solicitudes-dashboard-head{align-items:stretch;flex-direction:column}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .stat-card strong{font-size:24px}
+  .solicitud-admin-main{grid-template-columns:1fr}
+  .solicitud-admin-main .solicitud-estado{grid-column:auto}
+}
