@@ -555,6 +555,27 @@ function editarNegocio(id){
   });
 }
 
+
+window.addEventListener("error", (event) => {
+  const el = document.getElementById("negocioAdminMsg");
+  if (el) {
+    el.className = "mensaje error";
+    el.textContent = "❌ Error del sitio: " + (event.message || "Error desconocido");
+  }
+  console.error(event.error || event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const el = document.getElementById("negocioAdminMsg");
+  if (el) {
+    el.className = "mensaje error";
+    const reason = event.reason?.message || String(event.reason || "Error desconocido");
+    el.textContent = "❌ Error: " + reason;
+  }
+  console.error(event.reason);
+});
+
+
 async function guardarNegocio(){
   if(!usuario){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
 
@@ -592,12 +613,13 @@ async function guardarNegocio(){
 
   const btn=$("guardarNegocio");
   btn.disabled=true;
-  mensaje("negocioAdminMsg",negocioEditando?"Guardando cambios...":"Subiendo imagen y guardando negocio...");
+  mensaje("negocioAdminMsg",negocioEditando?"⏳ Guardando cambios...":"⏳ Procesando negocio...");
 
   let imagen=negocioEditando?.imagen||null;
   let nuevoPath=null;
 
   if(file){
+    mensaje("negocioAdminMsg","⏳ Subiendo imagen...");
     const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
     nuevoPath=`${crypto.randomUUID()}-${nombreArchivoNegocio(file.name)}.${ext}`;
 
@@ -612,6 +634,7 @@ async function guardarNegocio(){
   }
 
   const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
+  mensaje("negocioAdminMsg", negocioEditando ? "⏳ Actualizando negocio..." : "⏳ Guardando negocio en Supabase...");
 
   let error=null;
   if(negocioEditando){
