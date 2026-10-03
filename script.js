@@ -458,7 +458,7 @@ function renderNegocios(){
     return `
       <article class="business-card ${n.destacado?"business-featured":""}">
         ${n.destacado?'<div class="business-badge">⭐ DESTACADO</div>':""}
-        ${n.imagen?`<img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img business-clickable" data-business-image="${esc(n.imagen)}" data-business-name="${esc(n.nombre)}">`:`<div class="business-img business-noimg">🏪</div>`}
+        ${n.imagen?`<a class="business-image-link" href="${esc(n.imagen)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagen de ${esc(n.nombre)}"><img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img"></a>`:`<div class="business-img business-noimg">🏪</div>`}
         <div class="business-info">
           <div class="business-category">${esc(n.categoria)}</div>
           <h3>${esc(n.nombre)}</h3>
@@ -478,27 +478,6 @@ function renderNegocios(){
         </div>
       </article>`;
   }).join("");
-}
-
-
-function abrirImagenNegocio(url, nombre){
-  if(!url) return;
-  const modal=$("businessImageModal");
-  const img=$("businessImageLarge");
-  img.src=url;
-  img.alt=nombre || "Imagen del negocio";
-  modal.classList.remove("hidden");
-  modal.setAttribute("aria-hidden","false");
-  document.body.classList.add("business-image-open");
-}
-
-function cerrarImagenNegocio(){
-  const modal=$("businessImageModal");
-  const img=$("businessImageLarge");
-  modal.classList.add("hidden");
-  modal.setAttribute("aria-hidden","true");
-  img.src="";
-  document.body.classList.remove("business-image-open");
 }
 
 function limpiarFormularioNegocio(){
@@ -576,27 +555,6 @@ function editarNegocio(id){
   });
 }
 
-
-window.addEventListener("error", (event) => {
-  const el = document.getElementById("negocioAdminMsg");
-  if (el) {
-    el.className = "mensaje error";
-    el.textContent = "❌ Error del sitio: " + (event.message || "Error desconocido");
-  }
-  console.error(event.error || event.message);
-});
-
-window.addEventListener("unhandledrejection", (event) => {
-  const el = document.getElementById("negocioAdminMsg");
-  if (el) {
-    el.className = "mensaje error";
-    const reason = event.reason?.message || String(event.reason || "Error desconocido");
-    el.textContent = "❌ Error: " + reason;
-  }
-  console.error(event.reason);
-});
-
-
 async function guardarNegocio(){
   if(!usuario){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
 
@@ -634,13 +592,12 @@ async function guardarNegocio(){
 
   const btn=$("guardarNegocio");
   btn.disabled=true;
-  mensaje("negocioAdminMsg",negocioEditando?"⏳ Guardando cambios...":"⏳ Procesando negocio...");
+  mensaje("negocioAdminMsg",negocioEditando?"Guardando cambios...":"Subiendo imagen y guardando negocio...");
 
   let imagen=negocioEditando?.imagen||null;
   let nuevoPath=null;
 
   if(file){
-    mensaje("negocioAdminMsg","⏳ Subiendo imagen...");
     const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
     nuevoPath=`${crypto.randomUUID()}-${nombreArchivoNegocio(file.name)}.${ext}`;
 
@@ -655,7 +612,6 @@ async function guardarNegocio(){
   }
 
   const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
-  mensaje("negocioAdminMsg", negocioEditando ? "⏳ Actualizando negocio..." : "⏳ Guardando negocio en Supabase...");
 
   let error=null;
   if(negocioEditando){
@@ -763,15 +719,6 @@ function cerrar(){
 $("buscar").oninput=render;
 $("buscarNegocio").oninput=renderNegocios;
 $("filtroCategoria").onchange=renderNegocios;
-if($("closeBusinessImage")) $("closeBusinessImage").onclick=cerrarImagenNegocio;
-if($("businessImageModal")) $("businessImageModal").onclick=(e)=>{if(e.target.id==="businessImageModal")cerrarImagenNegocio();};
-if($("negociosGrid")) $("negociosGrid").addEventListener("click",(e)=>{
-  const img=e.target.closest(".business-clickable");
-  if(!img) return;
-  e.preventDefault();
-  abrirImagenNegocio(img.dataset.businessImage||"",img.dataset.businessName||"");
-});
-document.addEventListener("keydown",(e)=>{if(e.key==="Escape" && $("businessImageModal") && !$("businessImageModal").classList.contains("hidden")) cerrarImagenNegocio();});
 $("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;

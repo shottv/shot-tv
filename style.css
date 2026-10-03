@@ -91,11 +91,6 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .business-admin-actions button{flex:1}
 }
 
-.business-clickable{cursor:zoom-in}
-.business-clickable:hover{filter:brightness(1.08)}
-.business-image-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-.business-image-modal.hidden{display:none!important}
-.business-image-modal img{max-width:95vw;max-height:90vh;width:auto;height:auto;object-fit:contain;border-radius:10px;box-shadow:0 20px 70px #000}
-.business-image-close{position:fixed;right:18px;top:18px;border:0;border-radius:8px;background:#dc2626;color:#fff;font-size:22px;width:46px;height:46px;cursor:pointer;z-index:101}
-.business-image-close:hover{background:#b91c1c}
-.business-image-open{overflow:hidden}
+.business-image-link{display:block;text-decoration:none;cursor:pointer}
+.business-image-link .business-img{transition:transform .15s ease,opacity .15s ease}
+.business-image-link:active .business-img{transform:scale(.98);opacity:.9}
