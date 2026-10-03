@@ -160,15 +160,14 @@ async function agregarPelicula(){
 
   const ponerPrimero = $("ponerPrimero").checked;
 
-  // Para colocar una nueva película al principio no desplazamos todas las filas.
-  // Le asignamos un orden menor al actual mínimo. Así funciona incluso con cientos
-  // o miles de películas y evita múltiples actualizaciones en Supabase.
-  const ordenesValidos=peliculas
-    .map(m=>Number(m.orden))
-    .filter(Number.isFinite);
-  const minOrden=ordenesValidos.length ? Math.min(...ordenesValidos) : 1;
-  const maxOrden=ordenesValidos.length ? Math.max(...ordenesValidos) : 0;
-  const nuevoOrden=ponerPrimero ? minOrden-1 : maxOrden+1;
+  // Si se coloca al principio, usamos un orden menor que el actual.
+  // Así no tenemos que actualizar todas las películas existentes.
+  const ordenNumerico = peliculas
+    .map(m => Number(m.orden))
+    .filter(n => Number.isFinite(n));
+  const minOrden = ordenNumerico.length ? Math.min(...ordenNumerico) : 1;
+  const maxOrden = ordenNumerico.length ? Math.max(...ordenNumerico) : 0;
+  const nuevoOrden = ponerPrimero ? minOrden - 1 : maxOrden + 1;
 
   const {error}=await db.from("peliculas").insert({
     titulo,
