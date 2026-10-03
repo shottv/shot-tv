@@ -10,7 +10,8 @@
 <header>
   <div class="logo">▶ Shot TV</div>
   <nav>
-    <a href="#catalogo">Catálogo</a>
+    <a href="#catalogo" id="catalogoLink">Catálogo</a>
+    <a href="#negocios" id="negociosLink">🏪 Negocios</a>
     <a href="#admin" id="adminLink">Administrar</a>
   </nav>
   <div class="ad-banner" id="adBanner" aria-label="Publicidad"><span>PUBLICIDAD</span></div>
@@ -22,6 +23,23 @@
     <h1>🎬 Películas</h1>
     <div id="estado" class="estado">Cargando catálogo...</div>
     <div id="grid" class="grid"></div>
+  </section>
+
+  <section id="negocios" class="business-section hidden">
+    <h1>🏪 Negocios</h1>
+    <p class="subtexto business-intro">Encuentra negocios y servicios de tu comunidad.</p>
+    <div class="business-tools">
+      <input id="buscarNegocio" type="search" placeholder="🔎 Buscar negocio...">
+      <select id="filtroCategoria">
+        <option value="">Todas las categorías</option>
+        <option>Comida</option><option>Barberías</option><option>Estéticas</option>
+        <option>Tiendas</option><option>Automotriz</option><option>Servicios</option>
+        <option>Ropa</option><option>Tecnología</option><option>Mascotas</option>
+        <option>Educación</option><option>Salud</option><option>Otros</option>
+      </select>
+    </div>
+    <div id="negociosEstado" class="estado">Cargando negocios...</div>
+    <div id="negociosGrid" class="business-grid"></div>
   </section>
 
   <section id="admin" class="admin hidden">
@@ -68,6 +86,39 @@
         </div>
         <div id="adAdminMsg" class="mensaje"></div>
         <div id="adActual" class="ad-actual"></div>
+      </div>
+
+      <hr class="admin-sep">
+      <div class="business-admin">
+        <h2>🏪 Administrar negocios</h2>
+        <p class="subtexto">Agrega y administra los negocios que aparecerán en la sección Negocios.</p>
+        <div class="form">
+          <label>Nombre del negocio<input id="negNombre" type="text"></label>
+          <label>Categoría
+            <select id="negCategoria">
+              <option>Comida</option><option>Barberías</option><option>Estéticas</option>
+              <option>Tiendas</option><option>Automotriz</option><option>Servicios</option>
+              <option>Ropa</option><option>Tecnología</option><option>Mascotas</option>
+              <option>Educación</option><option>Salud</option><option>Otros</option>
+            </select>
+          </label>
+          <label>Imagen del negocio<input id="negImagen" type="file" accept="image/*"></label>
+          <label class="full">Descripción<textarea id="negDescripcion" rows="3" placeholder="Describe brevemente el negocio..."></textarea></label>
+          <label>Dirección<input id="negDireccion" type="text"></label>
+          <label>Teléfono<input id="negTelefono" type="tel"></label>
+          <label>WhatsApp<input id="negWhatsapp" type="tel" placeholder="6561234567"></label>
+          <label>Horario<input id="negHorario" type="text" placeholder="Lun-Sáb 9:00-20:00"></label>
+          <label>Facebook<input id="negFacebook" type="url" placeholder="https://facebook.com/..."></label>
+          <label>Instagram<input id="negInstagram" type="url" placeholder="https://instagram.com/..."></label>
+          <label>Sitio web<input id="negSitio" type="url" placeholder="https://..."></label>
+          <label>Google Maps<input id="negMapa" type="url" placeholder="https://maps.google.com/..."></label>
+          <label class="ad-check"><span>Negocio activo</span><input id="negActivo" type="checkbox" checked></label>
+          <label class="ad-check"><span>⭐ Destacar negocio</span><input id="negDestacado" type="checkbox"></label>
+          <button id="guardarNegocio">AGREGAR NEGOCIO</button>
+          <button id="cancelarNegocio" class="secondary-btn hidden" type="button">CANCELAR EDICIÓN</button>
+        </div>
+        <div id="negocioAdminMsg" class="mensaje"></div>
+        <div id="negociosAdminLista" class="business-admin-list"></div>
       </div>
     </div>
   </section>

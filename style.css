@@ -35,3 +35,40 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 
 
 .add-first-option{display:flex;flex-direction:row;align-items:center;gap:9px;cursor:pointer}.add-first-option input{width:18px;height:18px;margin:0}
+
+.business-section{padding-top:10px}
+.business-tools{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 22px}
+.business-tools input,.business-tools select{flex:1;min-width:220px;background:#111f32;color:#fff;border:1px solid #263a52;padding:11px 14px;border-radius:8px;outline:none}
+.business-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:22px}
+.business-card{background:#0d1b2d;border-radius:12px;overflow:hidden;box-shadow:0 8px 22px #0004;border:1px solid transparent}
+.business-card.business-featured{border-color:#eab308}
+.business-image{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#142235}
+.business-placeholder{display:flex;align-items:center;justify-content:center;font-size:54px}
+.business-info{padding:14px}
+.business-info h3{margin:0 0 5px;font-size:20px}
+.business-category{color:#93c5fd;font-size:13px;margin-bottom:10px}
+.business-info p{color:#cbd5e1;font-size:14px;line-height:1.45;margin:8px 0}
+.business-detail{color:#cbd5e1;font-size:13px;margin-top:7px}
+.business-badge{display:inline-block;color:#fde68a;font-size:11px;font-weight:800;margin-bottom:7px}
+.business-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}
+.business-btn{display:inline-block;text-decoration:none;background:#2563eb;color:#fff;padding:8px 10px;border-radius:7px;font-size:12px;font-weight:700}
+.business-btn:hover{background:#1d4ed8}
+.business-admin-list{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.business-admin-item{display:flex;align-items:center;gap:10px;background:#07111f;border:1px solid #1b2c43;border-radius:10px;padding:10px}
+.business-admin-item img,.business-admin-thumb{width:70px;height:52px;object-fit:cover;border-radius:6px;background:#142235;display:flex;align-items:center;justify-content:center}
+.business-admin-main{display:flex;flex-direction:column;gap:4px;margin-right:auto}
+.business-admin-main span{font-size:12px;color:#94a3b8}
+.business-admin-item button{flex:0 0 auto}
+.secondary-btn{background:#475569!important}
+textarea{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border-radius:7px;outline:none;resize:vertical;font-family:inherit}
+select{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border-radius:7px;outline:none}
+@media(max-width:760px){
+  .business-grid{grid-template-columns:1fr 1fr;gap:12px}
+  .business-info{padding:10px}
+  .business-info h3{font-size:16px}
+  .business-info p{font-size:12px}
+  .business-actions{display:grid;grid-template-columns:1fr}
+  .business-btn{text-align:center}
+  .business-admin-item{flex-wrap:wrap}
+  .business-admin-main{width:calc(100% - 85px)}
+}

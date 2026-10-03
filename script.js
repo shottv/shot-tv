@@ -7,6 +7,8 @@ const $ = id => document.getElementById(id);
 let peliculas = [];
 let usuario = null;
 let peliculaEditando = null;
+let negocios = [];
+let negocioEditando = null;
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -68,12 +70,14 @@ function mostrarAdmin(){
     adminPanel.classList.add("hidden");
   }
   render();
-  if(usuario) cargarPublicidadAdmin();
+  if(usuario){ cargarPublicidadAdmin(); cargarNegociosAdmin(); }
 }
 
 function abrirAdministracion(e){
   if(e) e.preventDefault();
   const adminSection=$("admin");
+  $("catalogo").classList.add("hidden");
+  $("negocios").classList.add("hidden");
   adminSection.classList.remove("hidden");
   mostrarAdmin();
   history.replaceState(null,"", "#admin");
@@ -396,6 +400,240 @@ async function eliminarPublicidad(ad){
   await cargarPublicidad(); await cargarPublicidadAdmin();
 }
 
+async function cargarNegocios(){
+  const {data,error}=await db.from("negocios")
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
+    .eq("activo",true)
+    .order("destacado",{ascending:false})
+    .order("created_at",{ascending:false});
+  if(error){
+    console.warn("No se pudieron cargar negocios:",error);
+    negocios=[];
+    renderNegocios();
+    $("negociosEstado").textContent="No se pudieron cargar los negocios.";
+    return;
+  }
+  negocios=data||[];
+  renderNegocios();
+}
+
+function renderNegocios(){
+  const q=String($("buscarNegocio")?.value||"").toLowerCase().trim();
+  const cat=String($("filtroCategoria")?.value||"");
+  const lista=negocios.filter(n=>{
+    const texto=[n.nombre,n.categoria,n.descripcion,n.direccion].join(" ").toLowerCase();
+    return (!q || texto.includes(q)) && (!cat || n.categoria===cat);
+  });
+  $("negociosEstado").textContent=lista.length?`${lista.length} negocio${lista.length===1?"":"s"} disponible${lista.length===1?"":"s"}.`:"No hay negocios para mostrar.";
+  $("negociosGrid").innerHTML=lista.map(n=>{
+    const wa=linkWhatsApp(n.whatsapp);
+    const links=[];
+    if(n.telefono) links.push(`<a class="business-btn" href="tel:${esc(n.telefono)}">📞 Llamar</a>`);
+    if(wa) links.push(`<a class="business-btn" href="${esc(wa)}" target="_blank" rel="noopener">💬 WhatsApp</a>`);
+    if(n.mapa && /^https?:\/\//i.test(n.mapa)) links.push(`<a class="business-btn" href="${esc(n.mapa)}" target="_blank" rel="noopener">📍 Cómo llegar</a>`);
+    if(n.sitio_web && /^https?:\/\//i.test(n.sitio_web)) links.push(`<a class="business-btn" href="${esc(n.sitio_web)}" target="_blank" rel="noopener">🌐 Sitio web</a>`);
+    return `<article class="business-card ${n.destacado?"business-featured":""}">
+      ${n.imagen?`<img class="business-image" src="${esc(n.imagen)}" alt="${esc(n.nombre)}">`:`<div class="business-image business-placeholder">🏪</div>`}
+      <div class="business-info">
+        ${n.destacado?`<div class="business-badge">⭐ DESTACADO</div>`:""}
+        <h3>${esc(n.nombre)}</h3>
+        <div class="business-category">${esc(n.categoria)}</div>
+        ${n.descripcion?`<p>${esc(n.descripcion)}</p>`:""}
+        ${n.direccion?`<div class="business-detail">📍 ${esc(n.direccion)}</div>`:""}
+        ${n.horario?`<div class="business-detail">🕐 ${esc(n.horario)}</div>`:""}
+        ${links.length?`<div class="business-actions">${links.join("")}</div>`:""}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+function linkWhatsApp(valor){
+  const v=String(valor||"").trim();
+  if(!v)return "";
+  if(/^https?:\/\//i.test(v))return v;
+  const digits=v.replace(/\D/g,"");
+  if(!digits)return "";
+  const numero=digits.length===10?"52"+digits:digits;
+  return `https://wa.me/${numero}`;
+}
+
+function validarUrlOpcional(valor){
+  return !valor || /^https?:\/\//i.test(valor);
+}
+
+function abrirNegocios(e){
+  if(e)e.preventDefault();
+  $("catalogo").classList.add("hidden");
+  $("admin").classList.add("hidden");
+  $("negocios").classList.remove("hidden");
+  history.replaceState(null,"","#negocios");
+  window.scrollTo({top:0,behavior:"smooth"});
+  cargarNegocios();
+}
+
+function mostrarCatalogo(e){
+  if(e)e.preventDefault();
+  $("negocios").classList.add("hidden");
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.remove("hidden");
+  history.replaceState(null,"","#catalogo");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function limpiarFormularioNegocio(){
+  negocioEditando=null;
+  $("negNombre").value="";
+  $("negCategoria").value="Comida";
+  $("negImagen").value="";
+  $("negDescripcion").value="";
+  $("negDireccion").value="";
+  $("negTelefono").value="";
+  $("negWhatsapp").value="";
+  $("negHorario").value="";
+  $("negFacebook").value="";
+  $("negInstagram").value="";
+  $("negSitio").value="";
+  $("negMapa").value="";
+  $("negActivo").checked=true;
+  $("negDestacado").checked=false;
+  $("guardarNegocio").textContent="AGREGAR NEGOCIO";
+  $("cancelarNegocio").classList.add("hidden");
+}
+
+async function cargarNegociosAdmin(){
+  if(!usuario)return;
+  const {data,error}=await db.from("negocios")
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
+    .order("destacado",{ascending:false}).order("created_at",{ascending:false});
+  if(error){
+    $("negociosAdminLista").innerHTML=`<div class="ad-empty">No se pudieron consultar los negocios: ${esc(error.message)}</div>`;
+    return;
+  }
+  const lista=data||[];
+  $("negociosAdminLista").innerHTML=lista.length?lista.map(n=>`
+    <div class="business-admin-item">
+      ${n.imagen?`<img src="${esc(n.imagen)}" alt="">`:`<div class="business-admin-thumb">🏪</div>`}
+      <div class="business-admin-main">
+        <strong>${esc(n.nombre)}</strong>
+        <span>${esc(n.categoria)} · ${n.activo?"ACTIVO":"INACTIVO"}${n.destacado?" · ⭐ DESTACADO":""}</span>
+      </div>
+      <button class="edit" onclick="editarNegocio(${Number(n.id)})">Editar</button>
+      <button class="delete" onclick="eliminarNegocio(${Number(n.id)})">Eliminar</button>
+    </div>`).join(""):"<div class=\"ad-empty\">Todavía no hay negocios.</div>";
+}
+
+function editarNegocio(id){
+  if(!usuario)return;
+  const n=negocios.find(x=>Number(x.id)===Number(id));
+  if(!n){
+    db.from("negocios").select("*").eq("id",id).single().then(({data,error})=>{
+      if(!error&&data) llenarFormularioNegocio(data);
+    });
+    return;
+  }
+  llenarFormularioNegocio(n);
+}
+
+function llenarFormularioNegocio(n){
+  negocioEditando=n;
+  $("negNombre").value=n.nombre||"";
+  $("negCategoria").value=n.categoria||"Otros";
+  $("negImagen").value="";
+  $("negDescripcion").value=n.descripcion||"";
+  $("negDireccion").value=n.direccion||"";
+  $("negTelefono").value=n.telefono||"";
+  $("negWhatsapp").value=n.whatsapp||"";
+  $("negHorario").value=n.horario||"";
+  $("negFacebook").value=n.facebook||"";
+  $("negInstagram").value=n.instagram||"";
+  $("negSitio").value=n.sitio_web||"";
+  $("negMapa").value=n.mapa||"";
+  $("negActivo").checked=!!n.activo;
+  $("negDestacado").checked=!!n.destacado;
+  $("guardarNegocio").textContent="GUARDAR CAMBIOS";
+  $("cancelarNegocio").classList.remove("hidden");
+  document.getElementById("negocios").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+async function guardarNegocio(){
+  if(!usuario){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
+  const nombre=$("negNombre").value.trim();
+  const categoria=$("negCategoria").value;
+  const descripcion=$("negDescripcion").value.trim();
+  const direccion=$("negDireccion").value.trim();
+  const telefono=$("negTelefono").value.trim();
+  const whatsapp=$("negWhatsapp").value.trim();
+  const horario=$("negHorario").value.trim();
+  const facebook=$("negFacebook").value.trim();
+  const instagram=$("negInstagram").value.trim();
+  const sitio_web=$("negSitio").value.trim();
+  const mapa=$("negMapa").value.trim();
+  const activo=$("negActivo").checked;
+  const destacado=$("negDestacado").checked;
+  const file=$("negImagen").files[0];
+
+  if(!nombre){mensaje("negocioAdminMsg","Escribe el nombre del negocio.",true);return;}
+  for(const [valor,nombreCampo] of [[facebook,"Facebook"],[instagram,"Instagram"],[sitio_web,"Sitio web"],[mapa,"Google Maps"]]){
+    if(!validarUrlOpcional(valor)){mensaje("negocioAdminMsg",`${nombreCampo} debe comenzar con http:// o https://.`,true);return;}
+  }
+  if(file && !file.type.startsWith("image/")){mensaje("negocioAdminMsg","La imagen debe ser un archivo de imagen.",true);return;}
+
+  const btn=$("guardarNegocio"); btn.disabled=true; mensaje("negocioAdminMsg",negocioEditando?"Guardando cambios...":"Subiendo imagen y guardando negocio...");
+  let imagen=negocioEditando?.imagen||null;
+  let nuevoPath=null;
+
+  if(file){
+    const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+    nuevoPath=`${crypto.randomUUID()}-${nombreArchivoSeguro(file.name)}.${ext}`;
+    const upload=await db.storage.from("negocios").upload(nuevoPath,file,{cacheControl:"3600",upsert:false});
+    if(upload.error){btn.disabled=false;mensaje("negocioAdminMsg","No se pudo subir la imagen: "+upload.error.message,true);return;}
+    imagen=db.storage.from("negocios").getPublicUrl(nuevoPath).data.publicUrl;
+  }
+
+  const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
+  let error=null;
+  if(negocioEditando){
+    ({error}=await db.from("negocios").update(payload).eq("id",negocioEditando.id));
+  }else{
+    ({error}=await db.from("negocios").insert(payload));
+  }
+
+  if(error){
+    if(nuevoPath)await db.storage.from("negocios").remove([nuevoPath]);
+    btn.disabled=false; mensaje("negocioAdminMsg","No se pudo guardar el negocio: "+error.message,true);return;
+  }
+
+  if(file && negocioEditando?.imagen){
+    try{
+      const marker="/storage/v1/object/public/negocios/";
+      const pos=String(negocioEditando.imagen).indexOf(marker);
+      if(pos>=0){const oldPath=decodeURIComponent(String(negocioEditando.imagen).slice(pos+marker.length));if(oldPath)await db.storage.from("negocios").remove([oldPath]);}
+    }catch(e){console.warn("No se pudo limpiar la imagen anterior:",e);}
+  }
+
+  btn.disabled=false;
+  mensaje("negocioAdminMsg",negocioEditando?"Negocio actualizado correctamente. 🏪":"Negocio agregado correctamente. 🏪");
+  limpiarFormularioNegocio();
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+}
+
+async function eliminarNegocio(id){
+  if(!usuario)return;
+  const {data,error}=await db.from("negocios").select("*").eq("id",id).single();
+  if(error||!data)return;
+  if(!confirm(`¿Eliminar "${data.nombre}"?`))return;
+  const {error:delError}=await db.from("negocios").delete().eq("id",id);
+  if(delError){alert("No se pudo eliminar el negocio: "+delError.message);return;}
+  try{
+    const marker="/storage/v1/object/public/negocios/",pos=String(data.imagen||"").indexOf(marker);
+    if(pos>=0){const path=decodeURIComponent(String(data.imagen).slice(pos+marker.length));if(path)await db.storage.from("negocios").remove([path]);}
+  }catch(e){console.warn("No se pudo limpiar la imagen:",e);}
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+}
+
+
 function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
@@ -422,13 +660,18 @@ function cerrar(){
 }
 
 $("buscar").oninput=render;
+$("buscarNegocio").oninput=renderNegocios;
+$("filtroCategoria").onchange=renderNegocios;
+$("catalogoLink").onclick=mostrarCatalogo;
+$("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;
-document.querySelector('a[href="#catalogo"]').onclick=()=>{ $("admin").classList.add("hidden"); };
 $("loginBtn").onclick=iniciarSesion;
 $("logoutBtn").onclick=cerrarSesion;
 $("agregar").onclick=agregarPelicula;
 $("guardarEdicion").onclick=guardarEdicion;
 $("guardarAd").onclick=guardarPublicidad;
+$("guardarNegocio").onclick=guardarNegocio;
+$("cancelarNegocio").onclick=limpiarFormularioNegocio;
 $("cerrarEdicion").onclick=cerrarEdicion;
 $("editModal").onclick=e=>{if(e.target===$("editModal"))cerrarEdicion()};
 $("cerrar").onclick=cerrar;
@@ -444,9 +687,17 @@ db.auth.getSession().then(({data})=>{
   usuario=data.session?.user||null;
   mostrarAdmin();
   cargarPeliculas();
+  cargarNegocios();
 });
 
 db.auth.onAuthStateChange((_event,session)=>{
   usuario=session?.user||null;
   mostrarAdmin();
+  if(usuario)cargarNegociosAdmin();
 });
+
+if(location.hash==="#negocios"){
+  setTimeout(()=>abrirNegocios(),300);
+}else if(location.hash==="#admin"){
+  setTimeout(()=>abrirAdministracion(),300);
+}
