@@ -135,3 +135,8 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   letter-spacing:.7px;
   font-size:1.05rem;
 }
+
+/* Botón de envío de registro */
+.register-submit{min-height:52px;font-size:15px;background:#22c55e;box-shadow:0 6px 18px rgba(34,197,94,.25);}
+.register-submit:hover{background:#16a34a;transform:translateY(-1px)}
+.registro-numero-label input{font-weight:900;letter-spacing:1.5px;font-size:18px;text-align:center;background:#0b2238;border-color:#22c55e;color:#86efac}

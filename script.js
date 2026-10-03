@@ -683,11 +683,17 @@ function abrirNegocios(e){
 const WHATSAPP_REGISTRO_NEGOCIO = "526561273144";
 
 function generarNumeroRegistro(){
-  const d=new Date();
-  const fecha=d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
-  const hora=String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0")+String(d.getSeconds()).padStart(2,"0");
-  const aleatorio=Math.random().toString(36).slice(2,6).toUpperCase();
-  return `STV-${fecha}-${hora}-${aleatorio}`;
+  // Código corto y fácil de dictar/guardar: STV-XXXXXX
+  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let codigo="";
+  if(window.crypto && crypto.getRandomValues){
+    const valores=new Uint32Array(6);
+    crypto.getRandomValues(valores);
+    for(let i=0;i<6;i++) codigo+=chars[valores[i]%chars.length];
+  }else{
+    for(let i=0;i<6;i++) codigo+=chars[Math.floor(Math.random()*chars.length)];
+  }
+  return `STV-${codigo}`;
 }
 
 function abrirRegistroNegocio(){
@@ -748,6 +754,8 @@ async function enviarRegistroPorWhatsApp(){
   const web=$("regWeb").value.trim();
   const mapa=$("regMapa").value.trim();
   const file=$("regImagen")?.files?.[0];
+  const numeroRegistro=$("regNumero")?.value.trim() || generarNumeroRegistro();
+  $("regNumero").value=numeroRegistro;
 
   if(!nombre || !descripcion || !file){
     mensaje("registroNegocioMsg","Completa nombre, descripción y selecciona la imagen del negocio.",true);
@@ -761,9 +769,7 @@ async function enviarRegistroPorWhatsApp(){
     return;
   }
 
-  const numeroRegistro=$("regNumero")?.value.trim() || generarNumeroRegistro();
-  if($("regNumero")) $("regNumero").value=numeroRegistro;
-  const mensajeWhatsApp = [
+  const mensajeWhatsApp=[
     "🏪 *SOLICITUD DE REGISTRO DE NEGOCIO — SHOT TV*",
     "",
     `*Número de registro:* ${numeroRegistro}`,
@@ -771,36 +777,32 @@ async function enviarRegistroPorWhatsApp(){
     `*Nombre:* ${nombre}`,
     `*Categoría:* ${categoria}`,
     `*Descripción:* ${descripcion}`,
-    `*Dirección:* ${direccion || "No proporcionada"}`,
-    `*Teléfono:* ${telefono || "No proporcionado"}`,
-    `*WhatsApp:* ${whatsapp || "No proporcionado"}`,
-    `*Horario:* ${horario || "No proporcionado"}`,
-    `*Facebook:* ${facebook || "No proporcionado"}`,
-    `*Instagram:* ${instagram || "No proporcionado"}`,
-    `*Sitio web:* ${web || "No proporcionado"}`,
-    `*Google Maps:* ${mapa || "No proporcionado"}`,
+    `*Dirección:* ${direccion||"No proporcionada"}`,
+    `*Teléfono:* ${telefono||"No proporcionado"}`,
+    `*WhatsApp:* ${whatsapp||"No proporcionado"}`,
+    `*Horario:* ${horario||"No proporcionado"}`,
+    `*Facebook:* ${facebook||"No proporcionado"}`,
+    `*Instagram:* ${instagram||"No proporcionado"}`,
+    `*Sitio web:* ${web||"No proporcionado"}`,
+    `*Google Maps:* ${mapa||"No proporcionado"}`,
     "",
-    `📸 *Imagen:* ${file.name}`
+    `📸 *Imagen seleccionada:* ${file.name}`
   ].join("\n");
 
-  const waUrl="https://wa.me/526561273144?text="+encodeURIComponent(mensajeWhatsApp);
-
+  // En móviles compatibles, este botón comparte texto + imagen y permite elegir WhatsApp.
   try{
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({title:`Registro ${numeroRegistro} — ${nombre}`,text:mensajeWhatsApp,files:[file]});
-      mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} preparada para compartir. ✅`);
+      await navigator.share({title:`${numeroRegistro} — ${nombre}`,text:mensajeWhatsApp,files:[file]});
+      mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} lista para compartir. ✅`,false);
       return;
     }
   }catch(error){
-    if(error && error.name==="AbortError") return;
-    console.warn("No fue posible compartir la imagen directamente:",error);
+    if(error?.name==="AbortError") return;
   }
 
-  // Compatibilidad: WhatsApp abre el mensaje y el cliente adjunta la imagen manualmente.
+  // Si el navegador no permite compartir archivos, abre WhatsApp directamente con el mensaje.
+  const waUrl="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeWhatsApp);
   window.location.href=waUrl;
-  setTimeout(()=>{
-    mensaje("registroNegocioMsg",`Solicitud ${numeroRegistro} enviada a WhatsApp. Adjunta la imagen ${file.name} en el chat antes de enviarlo. 📸`,false);
-  },700);
 }
 
 function abrirCatalogo(e){
