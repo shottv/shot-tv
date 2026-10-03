@@ -20,7 +20,7 @@ function mensaje(id, texto, error=false){
 
 async function cargarPeliculas(){
   $("estado").textContent="Cargando catálogo...";
-  const {data,error}=await db.from("peliculas").select("id,created_at,titulo,año,genero,portada,url").order("created_at",{ascending:false});
+  const {data,error}=await db.from("peliculas").select("id,created_at,titulo,año,genero,portada,url,orden").order("orden",{ascending:true,nullsFirst:false}).order("created_at",{ascending:true});
   if(error){
     console.error(error);
     $("estado").textContent="No se pudo cargar el catálogo.";
@@ -37,6 +37,8 @@ function render(){
   $("grid").innerHTML=lista.map(m=>`
     <article class="card" onclick="abrir(${Number(m.id)})">
       ${usuario?`<div class="card-actions" onclick="event.stopPropagation();">
+        <button class="move" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir">⬆️</button>
+        <button class="move" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar">⬇️</button>
         <button class="edit" onclick="editar(${Number(m.id)})">Editar</button>
         <button class="delete" onclick="eliminar(${Number(m.id)})">Eliminar</button>
       </div>`:""}
@@ -156,12 +158,14 @@ async function agregarPelicula(){
   const {data:publicData}=db.storage.from("posters").getPublicUrl(path);
   const portada=publicData.publicUrl;
 
+  const maxOrden = peliculas.reduce((max,m)=>Math.max(max, Number(m.orden)||0),0);
   const {error}=await db.from("peliculas").insert({
     titulo,
     "año":anio,
     genero,
     portada,
-    url
+    url,
+    orden:maxOrden+1
   });
 
   if(error){
@@ -179,6 +183,32 @@ async function agregarPelicula(){
   $("url").value="";
   btn.disabled=false;
   mensaje("adminMsg","Película agregada correctamente. 🎬");
+  await cargarPeliculas();
+}
+
+async function moverPelicula(id, direccion){
+  if(!usuario)return;
+  const ordenadas=[...peliculas].sort((a,b)=>{
+    const ao=Number(a.orden)||999999999;
+    const bo=Number(b.orden)||999999999;
+    return ao-bo;
+  });
+  const indice=ordenadas.findIndex(m=>Number(m.id)===Number(id));
+  if(indice<0)return;
+  const nuevoIndice=indice+direccion;
+  if(nuevoIndice<0 || nuevoIndice>=ordenadas.length)return;
+  const actual=ordenadas[indice];
+  const vecino=ordenadas[nuevoIndice];
+  const ordenActual=Number(actual.orden);
+  const ordenVecino=Number(vecino.orden);
+  if(!Number.isFinite(ordenActual)||!Number.isFinite(ordenVecino))return;
+
+  const {error:tempError}=await db.from("peliculas").update({orden:-Number(actual.id)}).eq("id",actual.id);
+  if(tempError){alert("No se pudo mover la película: "+tempError.message);return;}
+  const {error:vecinoError}=await db.from("peliculas").update({orden:ordenActual}).eq("id",vecino.id);
+  if(vecinoError){await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);alert("No se pudo mover la película: "+vecinoError.message);return;}
+  const {error:finalError}=await db.from("peliculas").update({orden:ordenVecino}).eq("id",actual.id);
+  if(finalError){alert("No se pudo completar el movimiento: "+finalError.message);return;}
   await cargarPeliculas();
 }
 
