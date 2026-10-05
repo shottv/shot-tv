@@ -127,8 +127,6 @@ async function cargarControlSolicitudes(){
         <div class="solicitud-detalle">
           <span><b>Descripción:</b> ${escSolicitud(s.descripcion||"No proporcionada")}</span>
           <span><b>Dirección:</b> ${escSolicitud(s.direccion||"No proporcionada")}</span>
-          <span><b>Ciudad:</b> ${escSolicitud(s.ciudad||"No proporcionada")}</span>
-          <span><b>Estado:</b> ${escSolicitud(s.estado||"No proporcionado")}</span>
           <span><b>Teléfono:</b> ${escSolicitud(s.telefono||"No proporcionado")}</span>
           <span><b>WhatsApp:</b> ${escSolicitud(s.whatsapp||"No proporcionado")}</span>
           <span><b>Horario:</b> ${escSolicitud(s.horario||"No proporcionado")}</span>
@@ -164,7 +162,6 @@ async function actualizarEstadoSolicitud(id,estado){
 
 function abrirAdministracion(e){
   if(e) e.preventDefault();
-  $("buscar").style.display="";
   const adminSection=$("admin");
   adminSection.classList.remove("hidden");
   mostrarAdmin();
@@ -518,10 +515,11 @@ function nombreArchivoNegocio(nombre){
 
 async function cargarNegocios(){
   const {data,error}=await db.from("negocios")
-    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,ciudad,estado,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado,orden")
     .eq("activo",true)
+    .order("orden",{ascending:true,nullsFirst:false})
     .order("destacado",{ascending:false})
-    .order("created_at",{ascending:false});
+    .order("created_at",{ascending:true});
 
   if(error){
     console.error("Error cargando negocios:", error);
@@ -536,7 +534,7 @@ function renderNegocios(){
   const q=($("buscarNegocio")?.value||"").toLowerCase().trim();
   const cat=$("filtroCategoria")?.value||"";
   const lista=negocios.filter(n=>{
-    const texto=[n.nombre,n.categoria,n.descripcion,n.direccion,n.ciudad,n.estado].join(" ").toLowerCase();
+    const texto=[n.nombre,n.categoria,n.descripcion,n.direccion].join(" ").toLowerCase();
     return (!q || texto.includes(q)) && (!cat || n.categoria===cat);
   });
 
@@ -556,7 +554,6 @@ function renderNegocios(){
           <h3>${esc(n.nombre)}</h3>
           ${n.descripcion?`<p>${esc(n.descripcion)}</p>`:""}
           ${n.direccion?`<div class="business-line">📍 ${esc(n.direccion)}</div>`:""}
-           ${n.ciudad||n.estado?`<div class="business-line">🏙️ ${esc([n.ciudad,n.estado].filter(Boolean).join(", "))}</div>`:""}
           ${n.horario?`<div class="business-line">🕐 ${esc(n.horario)}</div>`:""}
           <div class="business-actions">
             ${wa?`<a class="business-btn whatsapp" href="${wa}" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>`:""}
@@ -580,8 +577,6 @@ function limpiarFormularioNegocio(){
   $("negImagen").value="";
   $("negDescripcion").value="";
   $("negDireccion").value="";
-  $("negCiudad").value="";
-  $("negEstado").value="";
   $("negTelefono").value="";
   $("negWhatsapp").value="";
   $("negHorario").value="";
@@ -598,8 +593,9 @@ function limpiarFormularioNegocio(){
 async function cargarNegociosAdmin(){
   if(!usuario)return;
   const {data,error}=await db.from("negocios")
-    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,ciudad,estado,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
-    .order("created_at",{ascending:false});
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado,orden")
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:true});
 
   if(error){
     console.error("Error cargando negocios para admin:",error);
@@ -616,14 +612,16 @@ async function cargarNegociosAdmin(){
         <span>${esc(n.categoria)} · ${n.activo?"ACTIVO":"INACTIVO"}${n.destacado?" · ⭐ DESTACADO":""}</span>
       </div>
       <div class="business-admin-actions">
-        <button class="edit" onclick="editarNegocio(${Number(n.id)})">Editar</button>
-        <button class="delete" onclick="eliminarNegocio(${Number(n.id)})">Eliminar</button>
+        <button class="move-business" type="button" onclick="moverNegocio(${Number(n.id)}, -1)" title="Subir negocio">⬆️ Subir</button>
+        <button class="move-business" type="button" onclick="moverNegocio(${Number(n.id)}, 1)" title="Bajar negocio">⬇️ Bajar</button>
+        <button class="edit business-edit-btn" type="button" onclick="editarNegocio(${Number(n.id)})">✏️ Editar</button>
+        <button class="delete" type="button" onclick="eliminarNegocio(${Number(n.id)})">🗑️ Eliminar</button>
       </div>
     </div>`).join("") : '<div class="ad-empty">No hay negocios registrados.</div>';
 }
 
 function editarNegocio(id){
-  if(!usuario)return;
+  if(!usuario){mensaje("negocioAdminMsg","La sesión de administrador no está activa. Inicia sesión nuevamente.",true);return;}
   const {data}= {data: null};
   // Se consulta por id para no depender de la lista pública de activos.
   db.from("negocios").select("*").eq("id",id).single().then(({data,error})=>{
@@ -634,8 +632,6 @@ function editarNegocio(id){
     $("negImagen").value="";
     $("negDescripcion").value=data.descripcion||"";
     $("negDireccion").value=data.direccion||"";
-    $("negCiudad").value=data.ciudad||"";
-    $("negEstado").value=data.estado||"";
     $("negTelefono").value=data.telefono||"";
     $("negWhatsapp").value=data.whatsapp||"";
     $("negHorario").value=data.horario||"";
@@ -659,8 +655,6 @@ async function guardarNegocio(){
   const categoria=$("negCategoria").value.trim();
   const descripcion=$("negDescripcion").value.trim();
   const direccion=$("negDireccion").value.trim();
-  const ciudad=$("negCiudad").value.trim();
-  const estado=$("negEstado").value.trim();
   const telefono=$("negTelefono").value.trim();
   const whatsapp=$("negWhatsapp").value.trim();
   const horario=$("negHorario").value.trim();
@@ -710,7 +704,21 @@ async function guardarNegocio(){
     imagen=db.storage.from("negocios").getPublicUrl(nuevoPath).data.publicUrl;
   }
 
-  const payload={nombre,categoria,descripcion,imagen,direccion,ciudad,estado,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
+  let orden = negocioEditando?.orden;
+  if(!negocioEditando){
+    const {data:ordenData,error:ordenError}=await db.from("negocios").select("orden").order("orden",{ascending:false,nullsFirst:false}).limit(1);
+    if(ordenError){
+      console.error(ordenError);
+      btn.disabled=false;
+      mensaje("negocioAdminMsg","No se pudo calcular la posición del negocio: "+ordenError.message,true);
+      if(nuevoPath) await db.storage.from("negocios").remove([nuevoPath]);
+      return;
+    }
+    const maxOrden=Number(ordenData?.[0]?.orden);
+    orden=Number.isFinite(maxOrden)?maxOrden+1:1;
+  }
+
+  const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado,orden};
 
   let error=null;
   if(negocioEditando){
@@ -746,6 +754,58 @@ async function guardarNegocio(){
   await cargarNegociosAdmin();
 }
 
+async function moverNegocio(id, direccion){
+  if(!usuario)return;
+
+  const {data,error}=await db.from("negocios")
+    .select("id,nombre,orden,created_at")
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:true});
+
+  if(error){
+    mensaje("negocioAdminMsg","No se pudo cargar el orden de los negocios: "+error.message,true);
+    return;
+  }
+
+  const lista=(data||[]).filter(n=>Number.isFinite(Number(n.orden)));
+  const indice=lista.findIndex(n=>Number(n.id)===Number(id));
+  if(indice<0)return;
+
+  const nuevoIndice=indice+Number(direccion);
+  if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
+
+  const actual=lista[indice];
+  const vecino=lista[nuevoIndice];
+  const ordenActual=Number(actual.orden);
+  const ordenVecino=Number(vecino.orden);
+  const temporal=Math.max(...lista.map(n=>Number(n.orden)))+1;
+
+  const paso1=await db.from("negocios").update({orden:temporal}).eq("id",actual.id);
+  if(paso1.error){
+    mensaje("negocioAdminMsg","No se pudo mover el negocio: "+paso1.error.message,true);
+    return;
+  }
+
+  const paso2=await db.from("negocios").update({orden:ordenActual}).eq("id",vecino.id);
+  if(paso2.error){
+    await db.from("negocios").update({orden:ordenActual}).eq("id",actual.id);
+    mensaje("negocioAdminMsg","No se pudo completar el movimiento: "+paso2.error.message,true);
+    await cargarNegociosAdmin();
+    return;
+  }
+
+  const paso3=await db.from("negocios").update({orden:ordenVecino}).eq("id",actual.id);
+  if(paso3.error){
+    mensaje("negocioAdminMsg","No se pudo completar el movimiento: "+paso3.error.message,true);
+    await cargarNegociosAdmin();
+    return;
+  }
+
+  mensaje("negocioAdminMsg",`Posición actualizada: ${actual.nombre} ${direccion<0?"subió ⬆️":"bajó ⬇️"}`);
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+}
+
 async function eliminarNegocio(id){
   if(!usuario)return;
   const {data,error:readError}=await db.from("negocios").select("id,nombre,imagen").eq("id",id).single();
@@ -774,7 +834,6 @@ function abrirNegocios(e){
   $("admin").classList.add("hidden");
   $("catalogo").classList.add("hidden");
   $("negocios").classList.remove("hidden");
-  $("buscar").style.display="none";
   history.replaceState(null,"","#negocios");
   $("negocios").scrollIntoView({behavior:"smooth",block:"start"});
   cargarNegocios();
@@ -817,7 +876,7 @@ function cerrarRegistroNegocio(){
 }
 
 function limpiarRegistroNegocio(limpiarNumero=true){
-  ["regNombre","regDescripcion","regDireccion","regCiudad","regEstado","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
+  ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
   if($("regCategoria")) $("regCategoria").value="Comida";
   if(limpiarNumero && $("regNumero")) $("regNumero").value="";
   mensaje("registroNegocioMsg","");
@@ -830,8 +889,6 @@ async function enviarRegistroPorWhatsApp(){
   const categoria=$("regCategoria").value.trim();
   const descripcion=$("regDescripcion").value.trim();
   const direccion=$("regDireccion").value.trim();
-  const ciudad=$("regCiudad").value.trim();
-  const estado=$("regEstado").value.trim();
   const telefono=$("regTelefono").value.trim();
   const whatsapp=$("regWhatsapp").value.trim();
   const horario=$("regHorario").value.trim();
@@ -858,8 +915,6 @@ async function enviarRegistroPorWhatsApp(){
     `*Categoría:* ${categoria}`,
     `*Descripción:* ${descripcion}`,
     `*Dirección:* ${direccion||"No proporcionada"}`,
-    `*Ciudad:* ${ciudad||"No proporcionada"}`,
-    `*Estado:* ${estado||"No proporcionado"}`,
     `*Teléfono:* ${telefono||"No proporcionado"}`,
     `*WhatsApp:* ${whatsapp||"No proporcionado"}`,
     `*Horario:* ${horario||"No proporcionado"}`,
@@ -884,8 +939,6 @@ async function enviarRegistroPorWhatsApp(){
     categoria,
     descripcion,
     direccion: direccion || null,
-    ciudad: ciudad || null,
-    estado: estado || null,
     telefono: telefono || null,
     whatsapp: whatsapp || null,
     horario: horario || null,
@@ -939,7 +992,6 @@ function abrirCatalogo(e){
   $("negocios").classList.add("hidden");
   $("admin").classList.add("hidden");
   $("catalogo").classList.remove("hidden");
-  $("buscar").style.display="";
   history.replaceState(null,"","#catalogo");
 }
 

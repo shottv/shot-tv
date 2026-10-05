@@ -175,3 +175,13 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .solicitud-admin-main{grid-template-columns:1fr}
   .solicitud-admin-main .solicitud-estado{grid-column:auto}
 }
+
+
+/* Controles de administración de negocios */
+.business-admin-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.business-admin-actions button{border:0;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer;font-weight:700}
+.business-admin-actions button:hover{filter:brightness(1.12)}
+.move-business{background:#475569}
+.business-edit-btn{background:#2563eb}
+.business-admin-actions .delete{background:#dc2626}
+@media(max-width:760px){.business-admin-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.business-admin-actions button{width:100%}}
