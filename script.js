@@ -1315,6 +1315,20 @@ $("filtroCategoria").onchange=renderNegocios;
 $("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;
+
+// Acceso discreto al panel de administración: 5 clics rápidos sobre el logo.
+// El enlace "Administrar" permanece oculto para los visitantes.
+let adminLogoClicks=0;
+let adminLogoTimer=null;
+$("shotTvLogo").onclick=()=>{
+  adminLogoClicks++;
+  clearTimeout(adminLogoTimer);
+  adminLogoTimer=setTimeout(()=>{adminLogoClicks=0;},2500);
+  if(adminLogoClicks>=5){
+    adminLogoClicks=0;
+    abrirAdministracion();
+  }
+};
 $("abrirRegistroNegocio").onclick=abrirRegistroNegocio;
 $("cerrarRegistroNegocio").onclick=cerrarRegistroNegocio;
 $("enviarRegistroNegocio").onclick=enviarRegistroPorWhatsApp;
@@ -1353,3 +1367,9 @@ db.auth.onAuthStateChange((_event,session)=>{
   usuario=session?.user||null;
   mostrarAdmin();
 });
+
+// También permite abrir el acceso administrativo directamente con #admin.
+// Si no hay sesión, mostrará únicamente el formulario de inicio de sesión.
+if(location.hash==="#admin"){
+  setTimeout(()=>abrirAdministracion(),100);
+}
