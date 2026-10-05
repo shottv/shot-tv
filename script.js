@@ -1165,11 +1165,70 @@ function abrirCatalogo(e){
 }
 
 
+function detectarYouTube(url){
+  try{
+    const u=new URL(String(url||""));
+    const host=u.hostname.toLowerCase().replace(/^www\./,"");
+    if(host!=="youtube.com" && host!=="youtu.be" && !host.endsWith(".youtube.com")) return null;
+    let id="";
+    if(host==="youtu.be") id=u.pathname.split("/").filter(Boolean)[0]||"";
+    else if(u.pathname.startsWith("/watch")) id=u.searchParams.get("v")||"";
+    else if(u.pathname.startsWith("/live/")) id=u.pathname.split("/")[2]||"";
+    else if(u.pathname.startsWith("/embed/")) id=u.pathname.split("/")[2]||"";
+    else if(u.pathname.startsWith("/shorts/")) id=u.pathname.split("/")[2]||"";
+    id=id.split("?")[0].split("&")[0];
+    return /^[A-Za-z0-9_-]{6,20}$/.test(id)?id:null;
+  }catch(e){return null;}
+}
+
+function esHls(url){
+  return /\.m3u8(?:$|[?#])/i.test(String(url||""));
+}
+
+function limpiarReproductores(){
+  const video=$("player");
+  const yt=$("youtubePlayer");
+  if(video){
+    try{video.pause();}catch(e){}
+    if(window.__shotTvHls){try{window.__shotTvHls.destroy();}catch(e){} window.__shotTvHls=null;}
+    video.removeAttribute("src");
+    video.load();
+    video.classList.remove("hidden");
+  }
+  if(yt){yt.src="about:blank";yt.classList.add("hidden");}
+}
+
+function reproducirFuente(url){
+  const video=$("player");
+  const yt=$("youtubePlayer");
+  const youtubeId=detectarYouTube(url);
+  limpiarReproductores();
+
+  if(youtubeId){
+    // YouTube Live, watch, youtu.be, embed y Shorts se reproducen mediante IFrame.
+    // YouTube exige el formato /embed/VIDEO_ID para reproductores incrustados.
+    yt.src=`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
+    yt.classList.remove("hidden");
+    return;
+  }
+
+  video.classList.remove("hidden");
+  if(esHls(url) && window.Hls && Hls.isSupported()){
+    const hls=new Hls({enableWorker:true});
+    window.__shotTvHls=hls;
+    hls.loadSource(url);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));
+  }else{
+    video.src=url;
+    video.play().catch(()=>{});
+  }
+}
+
 function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
 
-  // Registrar la apertura/reproducción de la película en Google Analytics.
   if(typeof window.gtag === "function"){
     window.gtag("event","movie_play",{
       movie_id:String(m.id),
@@ -1180,9 +1239,8 @@ function abrir(id){
   }
 
   $("ptitulo").textContent=m.titulo;
-  $("player").src=m.url;
   $("modal").classList.add("open");
-  $("player").play().catch(()=>{});
+  reproducirFuente(m.url);
 }
 
 function alternarPantallaCompleta(){
@@ -1197,9 +1255,7 @@ function alternarPantallaCompleta(){
 function cerrar(){
   $("modal").classList.remove("custom-fullscreen");
   document.body.style.overflow="";
-  $("player").pause();
-  $("player").removeAttribute("src");
-  $("player").load();
+  limpiarReproductores();
   $("modal").classList.remove("open");
 }
 
