@@ -176,7 +176,11 @@
               <option>Otros</option>
             </select>
           </label>
-          <label>Imagen del negocio<input id="negImagen" type="file" accept="image/*"></label>
+          <label>Imagen principal del negocio<input id="negImagen" type="file" accept="image/*"></label>
+          <label class="full">📸 Fotos adicionales del negocio (máximo 9)<input id="negFotos" type="file" accept="image/*" multiple>
+            <small>La imagen principal + estas fotos pueden sumar hasta 10 imágenes por negocio.</small>
+          </label>
+          <div id="negocioFotosAdmin" class="negocio-fotos-admin full"></div>
 
           <label class="full">Descripción
             <textarea id="negDescripcion" rows="3" placeholder="Describe brevemente el negocio..."></textarea>

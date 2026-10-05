@@ -491,6 +491,44 @@ async function eliminarPublicidad(ad){
 // =========================
 let negocios = [];
 let negocioEditando = null;
+let fotosNegocios = {};
+
+function agruparFotos(rows){
+  const mapa = {};
+  (rows||[]).forEach(f=>{
+    const key=String(f.negocio_id);
+    if(!mapa[key]) mapa[key]=[];
+    mapa[key].push(f);
+  });
+  Object.values(mapa).forEach(arr=>arr.sort((a,b)=>(Number(a.orden)||999999)-(Number(b.orden)||999999)));
+  return mapa;
+}
+
+function renderGaleriaPublica(n){
+  const extras=fotosNegocios[String(n.id)]||[];
+  const urls=[];
+  if(n.imagen) urls.push(n.imagen);
+  extras.forEach(f=>{if(f.imagen && !urls.includes(f.imagen)) urls.push(f.imagen);});
+  if(urls.length<=1) return "";
+  return `<div class="negocio-gallery" aria-label="Fotos de ${esc(n.nombre)}">${urls.map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Foto ${i+1}"><img src="${esc(url)}" alt="${esc(n.nombre)} - foto ${i+1}"></a>`).join("")}</div>`;
+}
+
+function renderFotosAdmin(){
+  const box=$("negocioFotosAdmin");
+  if(!box)return;
+  if(!negocioEditando){box.innerHTML='<div class="negocio-fotos-vacio">Las fotos adicionales se podrán agregar después de guardar el negocio.</div>';return;}
+  const fotos=fotosNegocios[String(negocioEditando.id)]||[];
+  const principal=negocioEditando.imagen?`<div class="negocio-foto-admin"><img src="${esc(negocioEditando.imagen)}" alt="Foto principal"><span>Principal</span></div>`:"";
+  box.innerHTML = (principal + fotos.map(f=>`<div class="negocio-foto-admin"><img src="${esc(f.imagen)}" alt=""><button type="button" onclick="eliminarFotoNegocio(${Number(f.id)})">🗑️ Eliminar</button></div>`).join("")) || '<div class="negocio-fotos-vacio">No hay fotos adicionales.</div>';
+}
+
+async function cargarFotosNegocios(ids){
+  fotosNegocios={};
+  if(!ids.length)return;
+  const {data,error}=await db.from("negocio_fotos").select("id,negocio_id,imagen,orden,created_at").in("negocio_id",ids).order("orden",{ascending:true}).order("created_at",{ascending:true});
+  if(error){console.warn("No se pudieron cargar las fotos de negocios:",error);return;}
+  fotosNegocios=agruparFotos(data);
+}
 
 function urlValida(valor){
   return !valor || /^https?:\/\/\S+$/i.test(valor);
@@ -527,6 +565,7 @@ async function cargarNegocios(){
     return;
   }
   negocios=data||[];
+  await cargarFotosNegocios(negocios.map(n=>n.id));
   renderNegocios();
 }
 
@@ -548,7 +587,8 @@ function renderNegocios(){
     return `
       <article class="business-card ${n.destacado?"business-featured":""}">
         ${n.destacado?'<div class="business-badge">⭐ DESTACADO</div>':""}
-        ${n.imagen?`<a class="business-image-link" href="${esc(n.imagen)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagen de ${esc(n.nombre)}"><img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img"></a>`:`<div class="business-img business-noimg">🏪</div>`}
+        ${n.imagen?`<a class="business-image-link" href="${esc(n.imagen)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagen principal de ${esc(n.nombre)}"><img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img"></a>`:`<div class="business-img business-noimg">🏪</div>`}
+        ${renderGaleriaPublica(n)}
         <div class="business-info">
           <div class="business-category">${esc(n.categoria)}</div>
           <h3>${esc(n.nombre)}</h3>
@@ -575,6 +615,8 @@ function limpiarFormularioNegocio(){
   $("negNombre").value="";
   $("negCategoria").value="Comida";
   $("negImagen").value="";
+  if($("negFotos")) $("negFotos").value="";
+  if($("negocioFotosAdmin")) $("negocioFotosAdmin").innerHTML="";
   $("negDescripcion").value="";
   $("negDireccion").value="";
   $("negTelefono").value="";
@@ -604,6 +646,7 @@ async function cargarNegociosAdmin(){
   }
 
   const lista=data||[];
+  await cargarFotosNegocios(lista.map(n=>n.id));
   $("negociosAdminLista").innerHTML=lista.length ? lista.map(n=>`
     <div class="business-admin-row">
       ${n.imagen?`<img src="${esc(n.imagen)}" alt="">`:`<div class="business-admin-noimg">🏪</div>`}
@@ -620,32 +663,33 @@ async function cargarNegociosAdmin(){
     </div>`).join("") : '<div class="ad-empty">No hay negocios registrados.</div>';
 }
 
-function editarNegocio(id){
+async function editarNegocio(id){
   if(!usuario){mensaje("negocioAdminMsg","La sesión de administrador no está activa. Inicia sesión nuevamente.",true);return;}
-  const {data}= {data: null};
   // Se consulta por id para no depender de la lista pública de activos.
-  db.from("negocios").select("*").eq("id",id).single().then(({data,error})=>{
-    if(error){mensaje("negocioAdminMsg","No se pudo abrir el negocio: "+error.message,true);return;}
-    negocioEditando=data;
-    $("negNombre").value=data.nombre||"";
-    $("negCategoria").value=data.categoria||"Comida";
-    $("negImagen").value="";
-    $("negDescripcion").value=data.descripcion||"";
-    $("negDireccion").value=data.direccion||"";
-    $("negTelefono").value=data.telefono||"";
-    $("negWhatsapp").value=data.whatsapp||"";
-    $("negHorario").value=data.horario||"";
-    $("negFacebook").value=data.facebook||"";
-    $("negInstagram").value=data.instagram||"";
-    $("negWeb").value=data.sitio_web||"";
-    $("negMapa").value=data.mapa||"";
-    $("negActivo").checked=!!data.activo;
-    $("negDestacado").checked=!!data.destacado;
-    $("guardarNegocio").textContent="GUARDAR CAMBIOS DEL NEGOCIO";
-    $("cancelarNegocio").classList.remove("hidden");
-    $("negocioAdminMsg").textContent="";
-    $("negNombre").scrollIntoView({behavior:"smooth",block:"center"});
-  });
+  const {data,error}=await db.from("negocios").select("*").eq("id",id).single();
+  if(error){mensaje("negocioAdminMsg","No se pudo abrir el negocio: "+error.message,true);return;}
+  negocioEditando=data;
+  await cargarFotosNegocios([data.id]);
+  $("negNombre").value=data.nombre||"";
+  $("negCategoria").value=data.categoria||"Comida";
+  $("negImagen").value="";
+  if($("negFotos")) $("negFotos").value="";
+  $("negDescripcion").value=data.descripcion||"";
+  $("negDireccion").value=data.direccion||"";
+  $("negTelefono").value=data.telefono||"";
+  $("negWhatsapp").value=data.whatsapp||"";
+  $("negHorario").value=data.horario||"";
+  $("negFacebook").value=data.facebook||"";
+  $("negInstagram").value=data.instagram||"";
+  $("negWeb").value=data.sitio_web||"";
+  $("negMapa").value=data.mapa||"";
+  $("negActivo").checked=!!data.activo;
+  $("negDestacado").checked=!!data.destacado;
+  $("guardarNegocio").textContent="GUARDAR CAMBIOS DEL NEGOCIO";
+  $("cancelarNegocio").classList.remove("hidden");
+  $("negocioAdminMsg").textContent="";
+  renderFotosAdmin();
+  $("negNombre").scrollIntoView({behavior:"smooth",block:"center"});
 }
 
 async function guardarNegocio(){
@@ -665,6 +709,7 @@ async function guardarNegocio(){
   const activo=$("negActivo").checked;
   const destacado=$("negDestacado").checked;
   const file=$("negImagen").files[0];
+  const fotosFiles=[...($("negFotos")?.files || [])];
 
   if(!nombre||!categoria){
     mensaje("negocioAdminMsg","Completa nombre y categoría.",true);
@@ -679,7 +724,11 @@ async function guardarNegocio(){
   }
 
   if(file && !file.type.startsWith("image/")){
-    mensaje("negocioAdminMsg","La imagen del negocio debe ser una imagen.",true);
+    mensaje("negocioAdminMsg","La imagen principal debe ser una imagen.",true);
+    return;
+  }
+  if(fotosFiles.some(f=>!f.type.startsWith("image/"))){
+    mensaje("negocioAdminMsg","Todas las fotos adicionales deben ser imágenes.",true);
     return;
   }
 
@@ -702,6 +751,17 @@ async function guardarNegocio(){
       return;
     }
     imagen=db.storage.from("negocios").getPublicUrl(nuevoPath).data.publicUrl;
+  }
+
+  const fotosActuales = negocioEditando ? (fotosNegocios[String(negocioEditando.id)]||[]).length : 0;
+  const tienePrincipal = negocioEditando ? !!(negocioEditando.imagen || imagen) : !!imagen;
+  const totalActual = (tienePrincipal ? 1 : 0) + fotosActuales;
+  const maxAdicionales = Math.max(0, 10 - totalActual);
+  if(fotosFiles.length > maxAdicionales){
+    if(nuevoPath) await db.storage.from("negocios").remove([nuevoPath]);
+    btn.disabled=false;
+    mensaje("negocioAdminMsg",`El negocio puede tener hasta 10 fotos en total. Puedes agregar ${maxAdicionales} foto(s) adicional(es).`,true);
+    return;
   }
 
   let orden = negocioEditando?.orden;
@@ -735,6 +795,25 @@ async function guardarNegocio(){
     return;
   }
 
+  let negocioId=negocioEditando?.id;
+  if(!negocioId){
+    const {data:creado,error:creadoError}=await db.from("negocios").select("id").eq("nombre",nombre).order("created_at",{ascending:false}).limit(1).single();
+    if(creadoError){console.error(creadoError);} else negocioId=creado?.id;
+  }
+
+  if(fotosFiles.length && negocioId){
+    let siguienteOrden=Math.max(0,...(fotosNegocios[String(negocioId)]||[]).map(f=>Number(f.orden)||0))+1;
+    for(const foto of fotosFiles){
+      const ext=(foto.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+      const path=`${negocioId}/${crypto.randomUUID()}-${nombreArchivoNegocio(foto.name)}.${ext}`;
+      const upload=await db.storage.from("negocios").upload(path,foto,{cacheControl:"3600",upsert:false});
+      if(upload.error){console.error(upload.error);continue;}
+      const url=db.storage.from("negocios").getPublicUrl(path).data.publicUrl;
+      const {error:fotoError}=await db.from("negocio_fotos").insert({negocio_id:negocioId,imagen:url,orden:siguienteOrden++});
+      if(fotoError){console.error(fotoError);await db.storage.from("negocios").remove([path]);}
+    }
+  }
+
   // Si reemplazamos imagen, intentar eliminar la anterior.
   if(negocioEditando && file && negocioEditando.imagen){
     try{
@@ -750,6 +829,23 @@ async function guardarNegocio(){
   btn.disabled=false;
   mensaje("negocioAdminMsg",negocioEditando?"Negocio actualizado correctamente. 🏪":"Negocio agregado correctamente. 🏪");
   limpiarFormularioNegocio();
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+}
+
+async function eliminarFotoNegocio(id){
+  if(!usuario || !confirm("¿Eliminar esta foto del negocio?"))return;
+  const {data,error}=await db.from("negocio_fotos").select("id,imagen,negocio_id").eq("id",id).single();
+  if(error){mensaje("negocioAdminMsg","No se pudo consultar la foto: "+error.message,true);return;}
+  const {error:deleteError}=await db.from("negocio_fotos").delete().eq("id",id);
+  if(deleteError){mensaje("negocioAdminMsg","No se pudo eliminar la foto: "+deleteError.message,true);return;}
+  try{
+    const marker="/storage/v1/object/public/negocios/";
+    const pos=String(data.imagen||"").indexOf(marker);
+    if(pos>=0){const path=decodeURIComponent(String(data.imagen).slice(pos+marker.length));if(path)await db.storage.from("negocios").remove([path]);}
+  }catch(e){console.warn("No se pudo limpiar la foto:",e);}
+  await cargarFotosNegocios([data.negocio_id]);
+  if(negocioEditando)renderFotosAdmin();
   await cargarNegocios();
   await cargarNegociosAdmin();
 }
@@ -812,6 +908,7 @@ async function eliminarNegocio(id){
   if(readError){alert("No se pudo consultar el negocio: "+readError.message);return;}
   if(!confirm(`¿Eliminar "${data.nombre}"?`))return;
 
+  const {data:fotosEliminar}=await db.from("negocio_fotos").select("imagen").eq("negocio_id",id);
   const {error}=await db.from("negocios").delete().eq("id",id);
   if(error){alert("No se pudo eliminar el negocio: "+error.message);return;}
 
@@ -823,6 +920,13 @@ async function eliminarNegocio(id){
       if(path) await db.storage.from("negocios").remove([path]);
     }
   }catch(e){console.warn("No se pudo limpiar la imagen:",e);}
+  for(const foto of (fotosEliminar||[])){
+    try{
+      const marker="/storage/v1/object/public/negocios/";
+      const pos=String(foto.imagen||"").indexOf(marker);
+      if(pos>=0){const path=decodeURIComponent(String(foto.imagen).slice(pos+marker.length));if(path)await db.storage.from("negocios").remove([path]);}
+    }catch(e){console.warn("No se pudo limpiar foto adicional:",e);}
+  }
 
   mensaje("negocioAdminMsg","Negocio eliminado.");
   await cargarNegocios();
