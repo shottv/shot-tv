@@ -327,7 +327,17 @@ async function moverPelicula(id, direccion){
       if(!Number.isFinite(ordenActual)||!Number.isFinite(ordenVecino))return;
 
       // Intercambio seguro en 3 pasos para no actualizar todo el catálogo.
-      const tempOrden=-(Date.now()+Number(actual.id));
+      // IMPORTANTE: la columna "orden" es INTEGER de PostgreSQL.
+      // Date.now() supera el límite de INTEGER, por eso usamos un entero
+      // negativo pequeño que no esté ocupado.
+      let tempOrden=-1;
+      const ordenOcupada=new Set(
+        ordenadas
+          .map(m=>Number(m.orden))
+          .filter(Number.isInteger)
+      );
+      while(ordenOcupada.has(tempOrden)) tempOrden--;
+
       let r=await db.from("peliculas").update({orden:tempOrden}).eq("id",actual.id);
       if(r.error)throw r.error;
       r=await db.from("peliculas").update({orden:ordenActual}).eq("id",vecino.id);
