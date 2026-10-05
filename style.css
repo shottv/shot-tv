@@ -92,7 +92,7 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 }
 
 /* Imagen de negocio: abrir directamente en el navegador, compatible con móvil */
-.business-image-link{display:block;text-decoration:none;cursor:pointer}
+.business-image-link{display:block;width:100%;padding:0;border:0;text-decoration:none;cursor:pointer;background:transparent}
 .business-image-link .business-img{transition:transform .15s ease,opacity .15s ease}
 .business-image-link:active .business-img{transform:scale(.98);opacity:.9}
 
@@ -176,24 +176,33 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .solicitud-admin-main .solicitud-estado{grid-column:auto}
 }
 
+/* =========================
+   GALERÍA DE FOTOS DE NEGOCIOS
+   ========================= */
+.business-gallery{display:flex;gap:7px;padding:8px 10px;background:#081525;overflow-x:auto;scrollbar-width:thin}
+.business-gallery-item{display:block;flex:0 0 76px;height:60px;border-radius:7px;overflow:hidden;border:1px solid #263a52;background:#142235;padding:0;cursor:pointer}
+.business-gallery-item img{width:100%;height:100%;object-fit:cover;display:block}
+.business-gallery-item:active{opacity:.75}
+.galeria-admin-panel{display:flex;flex-direction:column;gap:7px;background:#07111f;border:1px dashed #2b5875;border-radius:10px;padding:12px}
+.galeria-admin-panel strong{color:#fff;font-size:14px}
+.galeria-admin-panel small{color:#94a3b8;font-size:12px;line-height:1.4}
+.negocio-galeria-actual{margin-top:4px}
+.galeria-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:8px}
+.galeria-admin-item{background:#0d1b2d;border:1px solid #1b2c43;border-radius:8px;padding:7px;display:flex;flex-direction:column;gap:6px}
+.galeria-admin-item img{width:100%;height:82px;object-fit:cover;border-radius:6px;background:#142235}
+.delete-photo{border:0;border-radius:6px;background:#dc2626;color:#fff;padding:6px 5px;font-size:11px;font-weight:700;cursor:pointer}
+.delete-photo:hover{background:#b91c1c}
+.galeria-vacia{color:#94a3b8;font-size:12px;padding:7px 0}
+@media(max-width:700px){
+  .galeria-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .business-gallery-item{flex-basis:82px;height:64px}
+}
 
-/* Controles de administración de negocios */
-.business-admin-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.business-admin-actions button{border:0;color:#fff;padding:7px 10px;border-radius:6px;cursor:pointer;font-weight:700}
-.business-admin-actions button:hover{filter:brightness(1.12)}
-.move-business{background:#475569}
-.business-edit-btn{background:#2563eb}
-.business-admin-actions .delete{background:#dc2626}
-@media(max-width:760px){.business-admin-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.business-admin-actions button{width:100%}}
 
-
-/* Galería de fotos de negocios */
-.negocio-gallery{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:4px}
-.negocio-gallery a{display:block;flex:0 0 78px}
-.negocio-gallery img{width:78px;height:58px;object-fit:cover;border-radius:7px;border:1px solid #263a52;display:block}
-.negocio-gallery a:first-child img{border-color:#d9a441}
-.negocio-fotos-admin{display:flex;flex-wrap:wrap;gap:10px;background:#07111f;border:1px solid #1b2c43;border-radius:10px;padding:12px;min-height:20px}
-.negocio-foto-admin{position:relative;width:105px}
-.negocio-foto-admin img{width:105px;height:78px;object-fit:cover;border-radius:7px;display:block;border:1px solid #263a52}
-.negocio-foto-admin button{margin-top:5px;width:100%;background:#dc2626;color:#fff;border:0;border-radius:6px;padding:5px;font-size:11px;font-weight:700;cursor:pointer}
-.negocio-fotos-vacio{color:#94a3b8;font-size:12px}
+/* Visor de fotos de negocios: evita navegar a la URL de Storage y elimina el problema 404 al volver en celular. */
+.business-photo-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:18px;z-index:1000}
+.business-photo-modal.open{display:flex}
+.business-photo-box{position:relative;max-width:min(96vw,1100px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+.business-photo-box img{display:block;max-width:96vw;max-height:90vh;width:auto;height:auto;object-fit:contain;border-radius:8px;background:#07111f}
+.business-photo-close{position:absolute;right:-8px;top:-8px;width:38px;height:38px;border:0;border-radius:50%;background:#dc2626;color:#fff;font-size:20px;font-weight:800;cursor:pointer;z-index:2}
+@media(max-width:700px){.business-photo-modal{padding:10px}.business-photo-box{max-width:100vw;max-height:96vh}.business-photo-box img{max-width:100vw;max-height:92vh}.business-photo-close{right:4px;top:4px}}

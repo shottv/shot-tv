@@ -177,10 +177,13 @@
             </select>
           </label>
           <label>Imagen principal del negocio<input id="negImagen" type="file" accept="image/*"></label>
-          <label class="full">📸 Fotos adicionales del negocio (máximo 9)<input id="negFotos" type="file" accept="image/*" multiple>
-            <small>La imagen principal + estas fotos pueden sumar hasta 10 imágenes por negocio.</small>
-          </label>
-          <div id="negocioFotosAdmin" class="negocio-fotos-admin full"></div>
+          <label>📸 Agregar más fotos<input id="negGaleria" type="file" accept="image/*" multiple></label>
+
+          <div class="full galeria-admin-panel">
+            <strong>📸 Galería de fotos</strong>
+            <small>Puedes seleccionar varias fotos a la vez. Las fotos adicionales no reemplazan la imagen principal.</small>
+            <div id="negocioGaleriaActual" class="negocio-galeria-actual"></div>
+          </div>
 
           <label class="full">Descripción
             <textarea id="negDescripcion" rows="3" placeholder="Describe brevemente el negocio..."></textarea>
@@ -247,6 +250,13 @@
   </div>
 </div>
 
+<div id="businessPhotoModal" class="business-photo-modal" aria-hidden="true">
+  <div class="business-photo-box">
+    <button id="cerrarFotoNegocio" class="business-photo-close" type="button" aria-label="Cerrar">✕</button>
+    <img id="businessPhotoViewer" src="" alt="Foto del negocio">
+  </div>
+</div>
+
 <div id="modal" class="modal">
   <div class="playerbox">
     <button id="cerrar" class="close">✕</button>
@@ -257,6 +267,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="script.js?v=20261004-negocios-orden-01"></script>
+<script src="script.js?v=20261005-02"></script>
 </body>
 </html>
