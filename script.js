@@ -631,7 +631,16 @@ async function cargarNegociosAdmin(){
   const lista=data||[];
   const fotos=await obtenerFotosNegocios(lista.map(n=>n.id));
   lista.forEach(n=>{n.fotos=fotos[n.id]||[];});
-  $('negociosAdminLista').innerHTML=lista.length ? lista.map(n=>`
+
+  // La lista administrativa conserva el mismo orden que se muestra públicamente:
+  // destacados primero y, dentro de cada grupo, por created_at descendente.
+  lista.sort((a,b)=>{
+    const da=!!a.destacado, dbb=!!b.destacado;
+    if(da!==dbb)return da? -1 : 1;
+    return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();
+  });
+
+  $('negociosAdminLista').innerHTML=lista.length ? lista.map((n,i)=>`
     <div class="business-admin-row">
       ${n.imagen?`<img src="${esc(n.imagen)}" alt="">`:`<div class="business-admin-noimg">🏪</div>`}
       <div class="business-admin-data">
@@ -639,10 +648,65 @@ async function cargarNegociosAdmin(){
         <span>${esc(n.categoria)} · ${n.activo?"ACTIVO":"INACTIVO"}${n.destacado?" · ⭐ DESTACADO":""} · 📸 ${n.fotos.length} foto${n.fotos.length===1?"":"s"}</span>
       </div>
       <div class="business-admin-actions">
+        <button class="move" onclick="moverNegocio(${Number(n.id)},-1)" title="Subir" ${i===0 || (!!lista[i-1].destacado!==!!n.destacado)?"disabled":""}>⬆️</button>
+        <button class="move" onclick="moverNegocio(${Number(n.id)},1)" title="Bajar" ${i===lista.length-1 || (!!lista[i+1].destacado!==!!n.destacado)?"disabled":""}>⬇️</button>
         <button class="edit" onclick="editarNegocio(${Number(n.id)})">Editar</button>
         <button class="delete" onclick="eliminarNegocio(${Number(n.id)})">Eliminar</button>
       </div>
     </div>`).join("") : '<div class="ad-empty">No hay negocios registrados.</div>';
+}
+
+async function moverNegocio(id, direccion){
+  if(!usuario)return;
+  const {data,error}=await db.from("negocios")
+    .select("id,nombre,created_at,destacado")
+    .order("destacado",{ascending:false})
+    .order("created_at",{ascending:false});
+  if(error){
+    mensaje("negocioAdminMsg","No se pudo consultar el orden de los negocios: "+error.message,true);
+    return;
+  }
+
+  const lista=data||[];
+  const indice=lista.findIndex(n=>Number(n.id)===Number(id));
+  if(indice<0)return;
+  const actual=lista[indice];
+  const nuevoIndice=indice+Number(direccion);
+  if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
+  const vecino=lista[nuevoIndice];
+
+  // No permitimos que un negocio destacado salte al grupo no destacado o viceversa.
+  if(!!actual.destacado!==!!vecino.destacado)return;
+
+  const fechaActual=actual.created_at;
+  const fechaVecino=vecino.created_at;
+  const temporal=new Date(Date.now()+86400000).toISOString();
+
+  const {error:tempError}=await db.from("negocios").update({created_at:temporal}).eq("id",actual.id);
+  if(tempError){
+    mensaje("negocioAdminMsg","No se pudo mover el negocio: "+tempError.message,true);
+    return;
+  }
+
+  const {error:vecinoError}=await db.from("negocios").update({created_at:fechaActual}).eq("id",vecino.id);
+  if(vecinoError){
+    await db.from("negocios").update({created_at:fechaActual}).eq("id",actual.id);
+    mensaje("negocioAdminMsg","No se pudo mover el negocio: "+vecinoError.message,true);
+    return;
+  }
+
+  const {error:finalError}=await db.from("negocios").update({created_at:fechaVecino}).eq("id",actual.id);
+  if(finalError){
+    // Intento de restauración de ambos valores originales.
+    await db.from("negocios").update({created_at:fechaActual}).eq("id",actual.id);
+    await db.from("negocios").update({created_at:fechaVecino}).eq("id",vecino.id);
+    mensaje("negocioAdminMsg","No se pudo completar el cambio de orden: "+finalError.message,true);
+    return;
+  }
+
+  mensaje("negocioAdminMsg",`Orden actualizado: ${actual.nombre} ${direccion<0?"subió ⬆️":"bajó ⬇️"}.`);
+  await cargarNegocios();
+  await cargarNegociosAdmin();
 }
 
 function renderGaleriaAdmin(fotos){
