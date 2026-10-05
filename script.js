@@ -36,17 +36,17 @@ function render(){
   $("estado").textContent=lista.length?"":"No hay películas para mostrar.";
   $("grid").innerHTML=lista.map(m=>`
     <article class="card" onclick="abrir(${Number(m.id)})">
+      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
+      <div class="info">
+        <h3>${esc(m.titulo)}</h3>
+        <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
+      </div>
       ${usuario?`<div class="card-actions" onclick="event.stopPropagation();">
         <button class="move" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir">⬆️</button>
         <button class="move" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar">⬇️</button>
         <button class="edit" onclick="editar(${Number(m.id)})">Editar</button>
         <button class="delete" onclick="eliminar(${Number(m.id)})">Eliminar</button>
       </div>`:""}
-      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
-      <div class="info">
-        <h3>${esc(m.titulo)}</h3>
-        <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
-      </div>
     </article>`).join("");
 }
 
@@ -300,71 +300,48 @@ async function moverPelicula(id, direccion){
   }
 
   const lista=(data||[]).slice();
+  lista.sort((a,b)=>{
+    const ao=Number(a.orden), bo=Number(b.orden);
+    if(Number.isFinite(ao)&&Number.isFinite(bo)&&ao!==bo)return ao-bo;
+    if(Number.isFinite(ao)!==Number.isFinite(bo))return Number.isFinite(ao)?-1:1;
+    return new Date(a.created_at).getTime()-new Date(b.created_at).getTime();
+  });
+
   const indice=lista.findIndex(m=>Number(m.id)===Number(id));
   if(indice<0){alert("No se encontró la película seleccionada.");return;}
-
   const nuevoIndice=indice+Number(direccion);
   if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
 
-  const actual=lista[indice];
-  const vecino=lista[nuevoIndice];
-  const ordenActual=Number(actual.orden);
-  const ordenVecino=Number(vecino.orden);
+  // -1 = subir una posición; +1 = bajar una posición.
+  const tmp=lista[indice];
+  lista[indice]=lista[nuevoIndice];
+  lista[nuevoIndice]=tmp;
 
-  if(!Number.isFinite(ordenActual) || !Number.isFinite(ordenVecino)){
-    alert("La película no tiene un número de orden válido.");
-    return;
+  // Primero quitamos cualquier posible colisión de orden.
+  for(let i=0;i<lista.length;i++){
+    const {error:e}=await db.from("peliculas")
+      .update({orden:-(1000000000+i+1)})
+      .eq("id",lista[i].id);
+    if(e){
+      alert("No se pudo preparar el cambio de posición: "+e.message);
+      await cargarPeliculas();
+      return;
+    }
   }
 
-  // Intercambiamos solamente las dos películas involucradas.
-  // Primero usamos un valor temporal único para evitar una colisión de orden.
-  const temporal=-(Math.abs(Number(actual.id))+1000000000);
-  const {error:tempError}=await db.from("peliculas")
-    .update({orden:temporal})
-    .eq("id",actual.id);
-
-  if(tempError){
-    console.error("Error temporal al mover película:",tempError);
-    alert("No se pudo iniciar el cambio de posición: "+tempError.message);
-    return;
+  // Después guardamos un orden limpio y consecutivo: 1, 2, 3...
+  for(let i=0;i<lista.length;i++){
+    const {error:e}=await db.from("peliculas")
+      .update({orden:i+1})
+      .eq("id",lista[i].id);
+    if(e){
+      alert("No se pudo guardar el nuevo orden: "+e.message);
+      await cargarPeliculas();
+      return;
+    }
   }
 
-  const {error:vecinoError}=await db.from("peliculas")
-    .update({orden:ordenActual})
-    .eq("id",vecino.id);
-
-  if(vecinoError){
-    await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);
-    console.error("Error al mover vecino:",vecinoError);
-    alert("No se pudo mover la película: "+vecinoError.message);
-    await cargarPeliculas();
-    return;
-  }
-
-  const {error:finalError}=await db.from("peliculas")
-    .update({orden:ordenVecino})
-    .eq("id",actual.id);
-
-  if(finalError){
-    // Intento de restauración.
-    await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);
-    await db.from("peliculas").update({orden:ordenVecino}).eq("id",vecino.id);
-    console.error("Error final al mover película:",finalError);
-    alert("No se pudo completar el cambio de posición: "+finalError.message);
-    await cargarPeliculas();
-    return;
-  }
-
-  // Actualización inmediata en pantalla.
-  actual.orden=ordenVecino;
-  vecino.orden=ordenActual;
-  lista.sort((a,b)=>{
-    const ao=Number(a.orden), bo=Number(b.orden);
-    if(ao!==bo)return ao-bo;
-    return new Date(a.created_at).getTime()-new Date(b.created_at).getTime();
-  });
-  peliculas=lista;
-  render();
+  await cargarPeliculas();
 }
 
 async function eliminar(id){
