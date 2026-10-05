@@ -7,6 +7,7 @@ const $ = id => document.getElementById(id);
 let peliculas = [];
 let usuario = null;
 let peliculaEditando = null;
+let moviendoPelicula = false;
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -46,8 +47,8 @@ function render(){
         <button class="move move-up" type="button" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir una posición">⬆️ Subir</button>
         <button class="move move-down" type="button" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar una posición">⬇️ Bajar</button>
         <button class="move move-last" type="button" onclick="moverPelicula(${Number(m.id)}, 2)" title="Enviar al final">⏬ Final</button>
-        <button class="edit" onclick="editar(${Number(m.id)})">Editar</button>
-        <button class="delete" onclick="eliminar(${Number(m.id)})">Eliminar</button>
+        <button class="edit" type="button" onclick="editar(${Number(m.id)})">Editar</button>
+        <button class="delete" type="button" onclick="eliminar(${Number(m.id)})">Eliminar</button>
       </div>`:""}
     </article>`).join("");
 }
@@ -167,9 +168,7 @@ function abrirAdministracion(e){
   const adminSection=$("admin");
   adminSection.classList.remove("hidden");
   mostrarAdmin();
-  // No dejamos #admin en la URL: así al recargar o cerrar sesión el cliente
-  // siempre vuelve al inicio público y nunca aterriza en el panel de acceso.
-  history.replaceState(null,"",location.pathname+location.search);
+  history.replaceState(null,"", "#admin");
   adminSection.scrollIntoView({behavior:"smooth",block:"start"});
   setTimeout(()=>{
     if(!usuario) $("loginEmail").focus();
@@ -201,13 +200,11 @@ async function iniciarSesion(){
 async function cerrarSesion(){
   await db.auth.signOut();
   usuario=null;
+  mostrarAdmin();
   $("admin").classList.add("hidden");
   $("catalogo").classList.remove("hidden");
-  $("negocios").classList.add("hidden");
-  $("buscar").classList.remove("hidden");
   history.replaceState(null,"",location.pathname+location.search);
-  mostrarAdmin();
-  requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
+  window.scrollTo({top:0,left:0,behavior:"auto"});
 }
 
 function nombreArchivoSeguro(nombre){
@@ -297,72 +294,59 @@ async function agregarPelicula(){
 }
 
 async function moverPelicula(id, direccion){
-  if(!usuario){alert("Debes iniciar sesión para cambiar el orden.");return;}
-
+  if(!usuario || moviendoPelicula)return;
+  moviendoPelicula=true;
   const scrollY=window.scrollY;
   const scrollX=window.scrollX;
-  const {data,error}=await db.from("peliculas")
-    .select("id,titulo,orden,created_at")
-    .order("orden",{ascending:true,nullsFirst:false})
-    .order("created_at",{ascending:true});
+  try{
+    const ordenadas=[...peliculas].sort((a,b)=>{
+      const ao=Number(a.orden);
+      const bo=Number(b.orden);
+      if(Number.isFinite(ao)&&Number.isFinite(bo)&&ao!==bo)return ao-bo;
+      if(Number.isFinite(ao)!==Number.isFinite(bo))return Number.isFinite(ao)?-1:1;
+      return new Date(a.created_at).getTime()-new Date(b.created_at).getTime();
+    });
+    const indice=ordenadas.findIndex(m=>Number(m.id)===Number(id));
+    if(indice<0)return;
 
-  if(error){
-    alert("No se pudo consultar el orden de las películas: "+error.message);
-    return;
+    // ⏫ Inicio / ⏬ Final: una sola actualización.
+    if(Number(direccion)===-2 || Number(direccion)===2){
+      const ordenes=ordenadas.map(m=>Number(m.orden)).filter(Number.isFinite);
+      const minOrden=ordenes.length?Math.min(...ordenes):0;
+      const maxOrden=ordenes.length?Math.max(...ordenes):0;
+      const nuevoOrden=Number(direccion)===-2 ? minOrden-1 : maxOrden+1;
+      const {error}=await db.from("peliculas").update({orden:nuevoOrden}).eq("id",id);
+      if(error)throw error;
+    }else{
+      const nuevoIndice=indice+Number(direccion);
+      if(nuevoIndice<0 || nuevoIndice>=ordenadas.length)return;
+      const actual=ordenadas[indice];
+      const vecino=ordenadas[nuevoIndice];
+      const ordenActual=Number(actual.orden);
+      const ordenVecino=Number(vecino.orden);
+      if(!Number.isFinite(ordenActual)||!Number.isFinite(ordenVecino))return;
+
+      // Intercambio seguro en 3 pasos para no actualizar todo el catálogo.
+      const tempOrden=-(Date.now()+Number(actual.id));
+      let r=await db.from("peliculas").update({orden:tempOrden}).eq("id",actual.id);
+      if(r.error)throw r.error;
+      r=await db.from("peliculas").update({orden:ordenActual}).eq("id",vecino.id);
+      if(r.error){
+        await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);
+        throw r.error;
+      }
+      r=await db.from("peliculas").update({orden:ordenVecino}).eq("id",actual.id);
+      if(r.error)throw r.error;
+    }
+
+    await cargarPeliculas();
+    requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:scrollX,behavior:"auto"}));
+  }catch(error){
+    console.error("Error al mover película:",error);
+    alert("No se pudo mover la película: "+(error?.message||error));
+  }finally{
+    moviendoPelicula=false;
   }
-
-  const lista=(data||[]).slice().sort((a,b)=>{
-    const ao=Number(a.orden), bo=Number(b.orden);
-    if(Number.isFinite(ao)&&Number.isFinite(bo)&&ao!==bo)return ao-bo;
-    if(Number.isFinite(ao)!==Number.isFinite(bo))return Number.isFinite(ao)?-1:1;
-    return new Date(a.created_at).getTime()-new Date(b.created_at).getTime();
-  });
-
-  const indice=lista.findIndex(m=>Number(m.id)===Number(id));
-  if(indice<0){alert("No se encontró la película seleccionada.");return;}
-
-  // -2 = enviar al principio; +2 = enviar al final.
-  // -1/+1 = mover una posición.
-  if(Number(direccion)===-2 || Number(direccion)===2){
-    const ordenes=lista.map(m=>Number(m.orden)).filter(Number.isFinite);
-    const minOrden=ordenes.length?Math.min(...ordenes):0;
-    const maxOrden=ordenes.length?Math.max(...ordenes):0;
-    const nuevoOrden=Number(direccion)===-2 ? minOrden-1 : maxOrden+1;
-    const {error:e}=await db.from("peliculas").update({orden:nuevoOrden}).eq("id",id);
-    if(e){
-      alert("No se pudo cambiar la posición: "+e.message);
-      return;
-    }
-  }else{
-    const nuevoIndice=indice+Number(direccion);
-    if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
-    const actual=lista[indice];
-    const vecino=lista[nuevoIndice];
-    const ordenActual=Number(actual.orden);
-    const ordenVecino=Number(vecino.orden);
-
-    // Solo 3 actualizaciones: temporal, intercambio y limpieza.
-    // Esto evita actualizar todas las películas y hace el movimiento mucho más rápido.
-    const tempOrden=-(Date.now()+Number(actual.id));
-    const {error:e1}=await db.from("peliculas").update({orden:tempOrden}).eq("id",actual.id);
-    if(e1){alert("No se pudo preparar el cambio: "+e1.message);return;}
-
-    const {error:e2}=await db.from("peliculas").update({orden:ordenActual}).eq("id",vecino.id);
-    if(e2){
-      await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);
-      alert("No se pudo cambiar la posición: "+e2.message);
-      return;
-    }
-
-    const {error:e3}=await db.from("peliculas").update({orden:ordenVecino}).eq("id",actual.id);
-    if(e3){
-      alert("No se pudo finalizar el cambio de posición: "+e3.message);
-      return;
-    }
-  }
-
-  await cargarPeliculas();
-  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:scrollX,behavior:"auto"}));
 }
 
 async function eliminar(id){
@@ -566,23 +550,6 @@ function nombreArchivoNegocio(nombre){
     .replace(/^-+|-+$/g,"") || "negocio";
 }
 
-async function obtenerFotosNegocios(ids){
-  if(!ids.length) return {};
-  const {data,error}=await db.from("negocio_fotos")
-    .select("id,negocio_id,url,orden,created_at")
-    .in("negocio_id",ids)
-    .order("orden",{ascending:true})
-    .order("created_at",{ascending:true});
-  if(error){
-    console.warn("No se pudieron cargar las fotos adicionales:",error);
-    return {};
-  }
-  return (data||[]).reduce((map,foto)=>{
-    (map[foto.negocio_id] ||= []).push(foto);
-    return map;
-  },{});
-}
-
 async function cargarNegocios(){
   const {data,error}=await db.from("negocios")
     .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
@@ -596,36 +563,28 @@ async function cargarNegocios(){
     return;
   }
   negocios=data||[];
-  const fotos=await obtenerFotosNegocios(negocios.map(n=>n.id));
-  negocios.forEach(n=>{n.fotos=fotos[n.id]||[];});
   renderNegocios();
 }
 
 function renderNegocios(){
-  const q=($('buscarNegocio')?.value||"").toLowerCase().trim();
-  const cat=$('filtroCategoria')?.value||"";
+  const q=($("buscarNegocio")?.value||"").toLowerCase().trim();
+  const cat=$("filtroCategoria")?.value||"";
   const lista=negocios.filter(n=>{
     const texto=[n.nombre,n.categoria,n.descripcion,n.direccion].join(" ").toLowerCase();
     return (!q || texto.includes(q)) && (!cat || n.categoria===cat);
   });
 
-  $('negociosEstado').textContent=lista.length
+  $("negociosEstado").textContent=lista.length
     ? `${lista.length} negocio${lista.length===1?"":"s"} encontrado${lista.length===1?"":"s"}.`
     : "No hay negocios para mostrar.";
 
-  $('negociosGrid').innerHTML=lista.map(n=>{
+  $("negociosGrid").innerHTML=lista.map(n=>{
     const wa=whatsappHref(n.whatsapp);
     const tel=telefonoHref(n.telefono);
-    const fotos=Array.isArray(n.fotos)?n.fotos:[];
-    const galeria=fotos.length ? `
-      <div class="business-gallery" aria-label="Fotos de ${esc(n.nombre)}">
-        ${fotos.map((foto,i)=>`<button type="button" class="business-gallery-item" onclick="verFotoNegocio(this.dataset.photoUrl)" data-photo-url="${esc(foto.url)}" aria-label="Ver foto ${i+1} de ${esc(n.nombre)}"><img src="${esc(foto.url)}" alt="${esc(n.nombre)} - foto ${i+1}" loading="lazy"></button>`).join("")}
-      </div>` : "";
     return `
       <article class="business-card ${n.destacado?"business-featured":""}">
         ${n.destacado?'<div class="business-badge">⭐ DESTACADO</div>':""}
-        ${n.imagen?`<button type="button" class="business-image-link" onclick="verFotoNegocio(this.dataset.photoUrl)" data-photo-url="${esc(n.imagen)}" aria-label="Abrir imagen de ${esc(n.nombre)}"><img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img"></button>`:`<div class="business-img business-noimg">🏪</div>`}
-        ${galeria}
+        ${n.imagen?`<a class="business-image-link" href="${esc(n.imagen)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagen de ${esc(n.nombre)}"><img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img"></a>`:`<div class="business-img business-noimg">🏪</div>`}
         <div class="business-info">
           <div class="business-category">${esc(n.categoria)}</div>
           <h3>${esc(n.nombre)}</h3>
@@ -652,7 +611,6 @@ function limpiarFormularioNegocio(){
   $("negNombre").value="";
   $("negCategoria").value="Comida";
   $("negImagen").value="";
-  $("negGaleria").value="";
   $("negDescripcion").value="";
   $("negDireccion").value="";
   $("negTelefono").value="";
@@ -664,7 +622,6 @@ function limpiarFormularioNegocio(){
   $("negMapa").value="";
   $("negActivo").checked=true;
   $("negDestacado").checked=false;
-  $("negocioGaleriaActual").innerHTML="";
   $("guardarNegocio").textContent="AGREGAR NEGOCIO";
   $("cancelarNegocio").classList.add("hidden");
 }
@@ -682,113 +639,30 @@ async function cargarNegociosAdmin(){
   }
 
   const lista=data||[];
-  const fotos=await obtenerFotosNegocios(lista.map(n=>n.id));
-  lista.forEach(n=>{n.fotos=fotos[n.id]||[];});
-
-  // La lista administrativa conserva el mismo orden que se muestra públicamente:
-  // destacados primero y, dentro de cada grupo, por created_at descendente.
-  lista.sort((a,b)=>{
-    const da=!!a.destacado, dbb=!!b.destacado;
-    if(da!==dbb)return da? -1 : 1;
-    return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();
-  });
-
-  $('negociosAdminLista').innerHTML=lista.length ? lista.map((n,i)=>`
+  $("negociosAdminLista").innerHTML=lista.length ? lista.map(n=>`
     <div class="business-admin-row">
       ${n.imagen?`<img src="${esc(n.imagen)}" alt="">`:`<div class="business-admin-noimg">🏪</div>`}
       <div class="business-admin-data">
         <strong>${esc(n.nombre)}</strong>
-        <span>${esc(n.categoria)} · ${n.activo?"ACTIVO":"INACTIVO"}${n.destacado?" · ⭐ DESTACADO":""} · 📸 ${n.fotos.length} foto${n.fotos.length===1?"":"s"}</span>
+        <span>${esc(n.categoria)} · ${n.activo?"ACTIVO":"INACTIVO"}${n.destacado?" · ⭐ DESTACADO":""}</span>
       </div>
       <div class="business-admin-actions">
-        <button class="move" onclick="moverNegocio(${Number(n.id)},-1)" title="Subir" ${i===0 || (!!lista[i-1].destacado!==!!n.destacado)?"disabled":""}>⬆️</button>
-        <button class="move" onclick="moverNegocio(${Number(n.id)},1)" title="Bajar" ${i===lista.length-1 || (!!lista[i+1].destacado!==!!n.destacado)?"disabled":""}>⬇️</button>
         <button class="edit" onclick="editarNegocio(${Number(n.id)})">Editar</button>
         <button class="delete" onclick="eliminarNegocio(${Number(n.id)})">Eliminar</button>
       </div>
     </div>`).join("") : '<div class="ad-empty">No hay negocios registrados.</div>';
 }
 
-async function moverNegocio(id, direccion){
-  if(!usuario)return;
-  const {data,error}=await db.from("negocios")
-    .select("id,nombre,created_at,destacado")
-    .order("destacado",{ascending:false})
-    .order("created_at",{ascending:false});
-  if(error){
-    mensaje("negocioAdminMsg","No se pudo consultar el orden de los negocios: "+error.message,true);
-    return;
-  }
-
-  const lista=data||[];
-  const indice=lista.findIndex(n=>Number(n.id)===Number(id));
-  if(indice<0)return;
-  const actual=lista[indice];
-  const nuevoIndice=indice+Number(direccion);
-  if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
-  const vecino=lista[nuevoIndice];
-
-  // No permitimos que un negocio destacado salte al grupo no destacado o viceversa.
-  if(!!actual.destacado!==!!vecino.destacado)return;
-
-  const fechaActual=actual.created_at;
-  const fechaVecino=vecino.created_at;
-  const temporal=new Date(Date.now()+86400000).toISOString();
-
-  const {error:tempError}=await db.from("negocios").update({created_at:temporal}).eq("id",actual.id);
-  if(tempError){
-    mensaje("negocioAdminMsg","No se pudo mover el negocio: "+tempError.message,true);
-    return;
-  }
-
-  const {error:vecinoError}=await db.from("negocios").update({created_at:fechaActual}).eq("id",vecino.id);
-  if(vecinoError){
-    await db.from("negocios").update({created_at:fechaActual}).eq("id",actual.id);
-    mensaje("negocioAdminMsg","No se pudo mover el negocio: "+vecinoError.message,true);
-    return;
-  }
-
-  const {error:finalError}=await db.from("negocios").update({created_at:fechaVecino}).eq("id",actual.id);
-  if(finalError){
-    // Intento de restauración de ambos valores originales.
-    await db.from("negocios").update({created_at:fechaActual}).eq("id",actual.id);
-    await db.from("negocios").update({created_at:fechaVecino}).eq("id",vecino.id);
-    mensaje("negocioAdminMsg","No se pudo completar el cambio de orden: "+finalError.message,true);
-    return;
-  }
-
-  mensaje("negocioAdminMsg",`Orden actualizado: ${actual.nombre} ${direccion<0?"subió ⬆️":"bajó ⬇️"}.`);
-  const scrollY=window.scrollY;
-  await cargarNegocios();
-  await cargarNegociosAdmin();
-  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:0,behavior:"auto"}));
-}
-
-function renderGaleriaAdmin(fotos){
-  const box=$("negocioGaleriaActual");
-  if(!box)return;
-  if(!fotos?.length){
-    box.innerHTML='<div class="galeria-vacia">No hay fotos adicionales todavía.</div>';
-    return;
-  }
-  box.innerHTML=`<div class="galeria-admin-grid">${fotos.map((foto,i)=>`
-    <div class="galeria-admin-item">
-      <img src="${esc(foto.url)}" alt="Foto ${i+1}">
-      <button type="button" class="delete-photo" onclick="eliminarFotoNegocio(${Number(foto.id)})">🗑️ Eliminar</button>
-    </div>`).join("")}</div>`;
-}
-
 function editarNegocio(id){
   if(!usuario)return;
-  db.from("negocios").select("*").eq("id",id).single().then(async ({data,error})=>{
+  const {data}= {data: null};
+  // Se consulta por id para no depender de la lista pública de activos.
+  db.from("negocios").select("*").eq("id",id).single().then(({data,error})=>{
     if(error){mensaje("negocioAdminMsg","No se pudo abrir el negocio: "+error.message,true);return;}
     negocioEditando=data;
-    const fotos=await obtenerFotosNegocios([id]);
-    negocioEditando.fotos=fotos[id]||[];
     $("negNombre").value=data.nombre||"";
     $("negCategoria").value=data.categoria||"Comida";
     $("negImagen").value="";
-    $("negGaleria").value="";
     $("negDescripcion").value=data.descripcion||"";
     $("negDireccion").value=data.direccion||"";
     $("negTelefono").value=data.telefono||"";
@@ -800,55 +674,11 @@ function editarNegocio(id){
     $("negMapa").value=data.mapa||"";
     $("negActivo").checked=!!data.activo;
     $("negDestacado").checked=!!data.destacado;
-    renderGaleriaAdmin(negocioEditando.fotos);
     $("guardarNegocio").textContent="GUARDAR CAMBIOS DEL NEGOCIO";
     $("cancelarNegocio").classList.remove("hidden");
     $("negocioAdminMsg").textContent="";
     $("negNombre").scrollIntoView({behavior:"smooth",block:"center"});
   });
-}
-
-async function subirFotosGaleria(negocioId,files){
-  const fotosSubidas=[];
-  const {data:existentes,error:countError}=await db.from("negocio_fotos")
-    .select("id,url",{count:"exact"})
-    .eq("negocio_id",negocioId);
-  if(countError){
-    console.error("No se pudo consultar la galería:",countError);
-    return {fotos:[],error:countError.message};
-  }
-
-  const disponibles=Math.max(0,9-(existentes?.length||0));
-  if(files.length>disponibles){
-    return {fotos:[],error:`Este negocio ya tiene ${existentes?.length||0} fotos adicionales. Solo puedes agregar ${disponibles} más (máximo 9).`};
-  }
-
-  for(const file of files){
-    if(!file.type.startsWith("image/")) continue;
-    const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
-    const path=`${crypto.randomUUID()}-${nombreArchivoNegocio(file.name)}.${ext}`;
-
-    const upload=await db.storage.from("negocios").upload(path,file,{cacheControl:"3600",upsert:false});
-    if(upload.error){
-      console.error("Error Storage galería:",upload.error);
-      return {fotos:fotosSubidas,error:`No se pudo subir "${file.name}": ${upload.error.message}`};
-    }
-
-    const url=db.storage.from("negocios").getPublicUrl(path).data.publicUrl;
-    const orden=Date.now()+fotosSubidas.length;
-    const {data,error}=await db.from("negocio_fotos")
-      .insert({negocio_id:negocioId,url,orden})
-      .select("id,negocio_id,url,orden,created_at")
-      .single();
-
-    if(error){
-      await db.storage.from("negocios").remove([path]);
-      console.error("Error DB galería:",error);
-      return {fotos:fotosSubidas,error:`La foto "${file.name}" se subió, pero no pudo registrarse en la galería: ${error.message}`};
-    }
-    fotosSubidas.push(data);
-  }
-  return {fotos:fotosSubidas,error:null};
 }
 
 async function guardarNegocio(){
@@ -868,7 +698,6 @@ async function guardarNegocio(){
   const activo=$("negActivo").checked;
   const destacado=$("negDestacado").checked;
   const file=$("negImagen").files[0];
-  const galleryFiles=[...($("negGaleria")?.files||[])];
 
   if(!nombre||!categoria){
     mensaje("negocioAdminMsg","Completa nombre y categoría.",true);
@@ -883,11 +712,7 @@ async function guardarNegocio(){
   }
 
   if(file && !file.type.startsWith("image/")){
-    mensaje("negocioAdminMsg","La imagen principal debe ser una imagen.",true);
-    return;
-  }
-  if(galleryFiles.some(f=>!f.type.startsWith("image/"))){
-    mensaje("negocioAdminMsg","Todas las fotos adicionales deben ser imágenes.",true);
+    mensaje("negocioAdminMsg","La imagen del negocio debe ser una imagen.",true);
     return;
   }
 
@@ -913,15 +738,12 @@ async function guardarNegocio(){
   }
 
   const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
-  let error=null;
-  let negocioId=negocioEditando?.id||null;
 
+  let error=null;
   if(negocioEditando){
     ({error}=await db.from("negocios").update(payload).eq("id",negocioEditando.id));
   }else{
-    const resultado=await db.from("negocios").insert(payload).select("id").single();
-    error=resultado.error;
-    negocioId=resultado.data?.id||null;
+    ({error}=await db.from("negocios").insert(payload));
   }
 
   if(error){
@@ -932,7 +754,7 @@ async function guardarNegocio(){
     return;
   }
 
-  // Si reemplazamos imagen principal, eliminar la anterior.
+  // Si reemplazamos imagen, intentar eliminar la anterior.
   if(negocioEditando && file && negocioEditando.imagen){
     try{
       const marker="/storage/v1/object/public/negocios/";
@@ -944,59 +766,9 @@ async function guardarNegocio(){
     }catch(e){console.warn("No se pudo limpiar la imagen anterior:",e);}
   }
 
-  let galleryError=null;
-  let galleryCount=0;
-  if(galleryFiles.length && negocioId){
-    mensaje("negocioAdminMsg",`Subiendo ${galleryFiles.length} foto${galleryFiles.length===1?"":"s"} adicionales...`);
-    const resultadoGaleria=await subirFotosGaleria(negocioId,galleryFiles);
-    galleryCount=resultadoGaleria.fotos.length;
-    galleryError=resultadoGaleria.error;
-  }
-
   btn.disabled=false;
-  await cargarNegocios();
-  await cargarNegociosAdmin();
-
-  if(galleryError){
-    mensaje("negocioAdminMsg",`Negocio guardado. ${galleryCount} foto${galleryCount===1?"":"s"} adicional${galleryCount===1?"":"es"} guardada${galleryCount===1?"":"s"}. ${galleryError}`,true);
-  }else if(galleryFiles.length){
-    mensaje("negocioAdminMsg",`✅ Negocio guardado y ${galleryCount} foto${galleryCount===1?"":"s"} adicional${galleryCount===1?"":"es"} guardada${galleryCount===1?"":"s"}.`);
-  }else{
-    mensaje("negocioAdminMsg",negocioEditando?"Negocio actualizado correctamente. 🏪":"Negocio agregado correctamente. 🏪");
-  }
-
-  // Si estábamos editando, conservamos el formulario abierto y mostramos la galería actualizada.
-  // Esto permite comprobar inmediatamente que las fotos quedaron guardadas.
-  if(negocioId && negocioEditando){
-    const fotosActualizadas=await obtenerFotosNegocios([negocioId]);
-    negocioEditando.fotos=fotosActualizadas[negocioId]||[];
-    renderGaleriaAdmin(negocioEditando.fotos);
-    $("negGaleria").value="";
-  }else{
-    limpiarFormularioNegocio();
-  }
-}
-
-async function eliminarFotoNegocio(id){
-  if(!usuario)return;
-  const {data,error}=await db.from("negocio_fotos").select("id,url,negocio_id").eq("id",id).single();
-  if(error){alert("No se pudo consultar la foto: "+error.message);return;}
-  if(!confirm("¿Eliminar esta foto de la galería?"))return;
-  const {error:delError}=await db.from("negocio_fotos").delete().eq("id",id);
-  if(delError){alert("No se pudo eliminar la foto: "+delError.message);return;}
-  try{
-    const marker="/storage/v1/object/public/negocios/";
-    const pos=String(data.url||"").indexOf(marker);
-    if(pos>=0){
-      const path=decodeURIComponent(String(data.url).slice(pos+marker.length));
-      if(path) await db.storage.from("negocios").remove([path]);
-    }
-  }catch(e){console.warn("No se pudo limpiar la foto:",e);}
-  const fotos=await obtenerFotosNegocios([data.negocio_id]);
-  if(negocioEditando?.id===data.negocio_id){
-    negocioEditando.fotos=fotos[data.negocio_id]||[];
-    renderGaleriaAdmin(negocioEditando.fotos);
-  }
+  mensaje("negocioAdminMsg",negocioEditando?"Negocio actualizado correctamente. 🏪":"Negocio agregado correctamente. 🏪");
+  limpiarFormularioNegocio();
   await cargarNegocios();
   await cargarNegociosAdmin();
 }
@@ -1007,7 +779,6 @@ async function eliminarNegocio(id){
   if(readError){alert("No se pudo consultar el negocio: "+readError.message);return;}
   if(!confirm(`¿Eliminar "${data.nombre}"?`))return;
 
-  const fotos=await obtenerFotosNegocios([id]);
   const {error}=await db.from("negocios").delete().eq("id",id);
   if(error){alert("No se pudo eliminar el negocio: "+error.message);return;}
 
@@ -1018,17 +789,9 @@ async function eliminarNegocio(id){
       const path=decodeURIComponent(String(data.imagen).slice(pos+marker.length));
       if(path) await db.storage.from("negocios").remove([path]);
     }
-    for(const foto of (fotos[id]||[])){
-      const posFoto=String(foto.url||"").indexOf(marker);
-      if(posFoto>=0){
-        const pathFoto=decodeURIComponent(String(foto.url).slice(posFoto+marker.length));
-        if(pathFoto) await db.storage.from("negocios").remove([pathFoto]);
-      }
-    }
-  }catch(e){console.warn("No se pudo limpiar las imágenes:",e);}
+  }catch(e){console.warn("No se pudo limpiar la imagen:",e);}
 
   mensaje("negocioAdminMsg","Negocio eliminado.");
-  limpiarFormularioNegocio();
   await cargarNegocios();
   await cargarNegociosAdmin();
 }
@@ -1037,7 +800,6 @@ function abrirNegocios(e){
   if(e)e.preventDefault();
   $("admin").classList.add("hidden");
   $("catalogo").classList.add("hidden");
-  $("buscar").classList.add("hidden");
   $("negocios").classList.remove("hidden");
   history.replaceState(null,"","#negocios");
   $("negocios").scrollIntoView({behavior:"smooth",block:"start"});
@@ -1192,27 +954,8 @@ async function enviarRegistroPorWhatsApp(){
   window.location.href=url;
 }
 
-function verFotoNegocio(url){
-  if(!url)return;
-  const modal=$("businessPhotoModal");
-  const img=$("businessPhotoViewer");
-  if(!modal||!img)return;
-  img.src=url;
-  modal.classList.add("open");
-  document.body.style.overflow="hidden";
-}
-
-function cerrarFotoNegocio(){
-  const modal=$("businessPhotoModal");
-  const img=$("businessPhotoViewer");
-  if(img)img.removeAttribute("src");
-  if(modal)modal.classList.remove("open");
-  document.body.style.overflow="";
-}
-
 function abrirCatalogo(e){
   if(e)e.preventDefault();
-  $("buscar").classList.remove("hidden");
   $("negocios").classList.add("hidden");
   $("admin").classList.add("hidden");
   $("catalogo").classList.remove("hidden");
@@ -1220,78 +963,17 @@ function abrirCatalogo(e){
 }
 
 
-function detectarYouTube(url){
+function youtubeIdDesdeUrl(url){
   try{
-    const u=new URL(String(url||""));
-    const host=u.hostname.toLowerCase().replace(/^www\./,"");
-    if(host!=="youtube.com" && host!=="youtu.be" && !host.endsWith(".youtube.com")) return null;
-    let id="";
-    if(host==="youtu.be") id=u.pathname.split("/").filter(Boolean)[0]||"";
-    else if(u.pathname.startsWith("/watch")) id=u.searchParams.get("v")||"";
-    else if(u.pathname.startsWith("/live/")) id=u.pathname.split("/")[2]||"";
-    else if(u.pathname.startsWith("/embed/")) id=u.pathname.split("/")[2]||"";
-    else if(u.pathname.startsWith("/shorts/")) id=u.pathname.split("/")[2]||"";
-    id=id.split("?")[0].split("&")[0];
-    return /^[A-Za-z0-9_-]{6,20}$/.test(id)?id:null;
-  }catch(e){return null;}
-}
-
-function esHls(url){
-  return /\.m3u8(?:$|[?#])/i.test(String(url||""));
-}
-
-function mostrarSoloReproductor(tipo){
-  const video=$("player");
-  const yt=$("youtubePlayer");
-  if(video) video.style.display = tipo === "video" ? "block" : "none";
-  if(yt) yt.style.display = tipo === "youtube" ? "block" : "none";
-}
-
-function limpiarReproductores(){
-  const video=$("player");
-  const yt=$("youtubePlayer");
-  if(video){
-    try{video.pause();}catch(e){}
-    if(window.__shotTvHls){try{window.__shotTvHls.destroy();}catch(e){} window.__shotTvHls=null;}
-    video.removeAttribute("src");
-    video.load();
-    video.classList.add("hidden");
-    video.style.display="none";
-  }
-  if(yt){
-    yt.src="about:blank";
-    yt.classList.add("hidden");
-    yt.style.display="none";
-  }
-}
-
-function reproducirFuente(url){
-  const video=$("player");
-  const yt=$("youtubePlayer");
-  const youtubeId=detectarYouTube(url);
-  limpiarReproductores();
-
-  if(youtubeId){
-    // Solo YouTube: el video HTML5 permanece completamente oculto.
-    yt.src=`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
-    yt.classList.remove("hidden");
-    yt.style.display="block";
-    return;
-  }
-
-  // Solo MP4/HLS: el iframe permanece completamente oculto.
-  video.classList.remove("hidden");
-  video.style.display="block";
-  if(esHls(url) && window.Hls && Hls.isSupported()){
-    const hls=new Hls({enableWorker:true});
-    window.__shotTvHls=hls;
-    hls.loadSource(url);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));
-  }else{
-    video.src=url;
-    video.play().catch(()=>{});
-  }
+    const u=new URL(url);
+    if(u.hostname.includes("youtu.be"))return u.pathname.slice(1).split("/")[0]||null;
+    if(u.hostname.includes("youtube.com")){
+      if(u.pathname.startsWith("/watch"))return u.searchParams.get("v");
+      if(u.pathname.startsWith("/live/"))return u.pathname.split("/live/")[1].split("/")[0];
+      if(u.pathname.startsWith("/embed/"))return u.pathname.split("/embed/")[1].split("/")[0];
+    }
+  }catch(e){}
+  return null;
 }
 
 function abrir(id){
@@ -1299,17 +981,36 @@ function abrir(id){
   if(!m)return;
 
   if(typeof window.gtag === "function"){
-    window.gtag("event","movie_play",{
-      movie_id:String(m.id),
-      movie_title:String(m.titulo||""),
-      movie_year:String(m.año||""),
-      movie_genre:String(m.genero||"")
-    });
+    window.gtag("event","movie_play",{movie_id:String(m.id),movie_title:String(m.titulo||""),movie_year:String(m.año||""),movie_genre:String(m.genero||"")});
   }
 
   $("ptitulo").textContent=m.titulo;
+  const video=$("player");
+  const youtube=$("youtubePlayer");
+  const url=String(m.url||"").trim();
+  const ytId=youtubeIdDesdeUrl(url);
+  if(ytId && youtube){
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    video.classList.add("hidden");
+    youtube.classList.remove("hidden");
+    youtube.src=`https://www.youtube.com/embed/${encodeURIComponent(ytId)}?autoplay=1&playsinline=1&rel=0`;
+  }else{
+    if(youtube){youtube.src="";youtube.classList.add("hidden");}
+    video.classList.remove("hidden");
+    video.src=url;
+    if(/\.m3u8(?:$|[?#])/i.test(url) && window.Hls && Hls.isSupported()){
+      if(window.__shotHls){window.__shotHls.destroy();}
+      window.__shotHls=new Hls();
+      window.__shotHls.loadSource(url);
+      window.__shotHls.attachMedia(video);
+    }else{
+      video.load();
+      video.play().catch(()=>{});
+    }
+  }
   $("modal").classList.add("open");
-  reproducirFuente(m.url);
 }
 
 function alternarPantallaCompleta(){
@@ -1324,9 +1025,32 @@ function alternarPantallaCompleta(){
 function cerrar(){
   $("modal").classList.remove("custom-fullscreen");
   document.body.style.overflow="";
-  limpiarReproductores();
+  const video=$("player");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  if(window.__shotHls){window.__shotHls.destroy();window.__shotHls=null;}
+  const youtube=$("youtubePlayer");
+  if(youtube){youtube.src="";youtube.classList.add("hidden");}
   $("modal").classList.remove("open");
 }
+
+
+// El acceso de administración no aparece para clientes. Si se conserva #admin en la URL,
+// se elimina al cargar para que la página siempre abra desde el catálogo.
+if(location.hash==="#admin") history.replaceState(null,"",location.pathname+location.search);
+window.scrollTo(0,0);
+
+let _logoClicks=0,_logoTimer=null;
+$("shotTvLogo").addEventListener("click",()=>{
+  _logoClicks++;
+  clearTimeout(_logoTimer);
+  _logoTimer=setTimeout(()=>{_logoClicks=0;},1200);
+  if(_logoClicks>=5){
+    _logoClicks=0;
+    abrirAdministracion();
+  }
+});
 
 $("buscar").oninput=render;
 $("buscarNegocio").oninput=renderNegocios;
@@ -1334,20 +1058,6 @@ $("filtroCategoria").onchange=renderNegocios;
 $("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
 $("adminLink").onclick=abrirAdministracion;
-
-// Acceso discreto al panel de administración: 5 clics rápidos sobre el logo.
-// El enlace "Administrar" permanece oculto para los visitantes.
-let adminLogoClicks=0;
-let adminLogoTimer=null;
-$("shotTvLogo").onclick=()=>{
-  adminLogoClicks++;
-  clearTimeout(adminLogoTimer);
-  adminLogoTimer=setTimeout(()=>{adminLogoClicks=0;},2500);
-  if(adminLogoClicks>=5){
-    adminLogoClicks=0;
-    abrirAdministracion();
-  }
-};
 $("abrirRegistroNegocio").onclick=abrirRegistroNegocio;
 $("cerrarRegistroNegocio").onclick=cerrarRegistroNegocio;
 $("enviarRegistroNegocio").onclick=enviarRegistroPorWhatsApp;
@@ -1364,14 +1074,11 @@ $("cerrarEdicion").onclick=cerrarEdicion;
 $("editModal").onclick=e=>{if(e.target===$("editModal"))cerrarEdicion()};
 $("cerrar").onclick=cerrar;
 $("modal").onclick=e=>{if(e.target===$("modal"))cerrar()};
-$("cerrarFotoNegocio").onclick=cerrarFotoNegocio;
-$("businessPhotoModal").onclick=e=>{if(e.target===$("businessPhotoModal"))cerrarFotoNegocio()};
 cargarPublicidad();
 cargarNegocios();
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&$("modal").classList.contains("custom-fullscreen")){ alternarPantallaCompleta(); return; }
   if(e.key==="Escape"&&$("modal").classList.contains("open"))cerrar();
-  if(e.key==="Escape"&&$("businessPhotoModal").classList.contains("open"))cerrarFotoNegocio();
   if(e.key==="Escape"&&$("editModal").classList.contains("open"))cerrarEdicion();
   if(e.key==="Enter"&&document.activeElement===$("loginPassword"))iniciarSesion();
 });
@@ -1386,11 +1093,3 @@ db.auth.onAuthStateChange((_event,session)=>{
   usuario=session?.user||null;
   mostrarAdmin();
 });
-
-// Al abrir o recargar Shot TV siempre mostramos el inicio público.
-// El acceso administrativo se realiza únicamente con 5 clics sobre el logo.
-history.replaceState(null,"",location.pathname+location.search);
-$("admin").classList.add("hidden");
-$("catalogo").classList.remove("hidden");
-$("negocios").classList.add("hidden");
-requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
