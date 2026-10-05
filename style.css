@@ -206,3 +206,54 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .business-photo-box img{display:block;max-width:96vw;max-height:90vh;width:auto;height:auto;object-fit:contain;border-radius:8px;background:#07111f}
 .business-photo-close{position:absolute;right:-8px;top:-8px;width:38px;height:38px;border:0;border-radius:50%;background:#dc2626;color:#fff;font-size:20px;font-weight:800;cursor:pointer;z-index:2}
 @media(max-width:700px){.business-photo-modal{padding:10px}.business-photo-box{max-width:100vw;max-height:96vh}.business-photo-box img{max-width:100vw;max-height:92vh}.business-photo-close{right:4px;top:4px}}
+
+/* =========================
+   AJUSTE RESPONSIVE MOVIL - NEGOCIOS
+   ========================= */
+.business-card{min-width:0;width:100%;}
+.business-card > img,
+.business-card > .business-image-link > img{
+  width:100%;
+  max-width:100%;
+  height:180px;
+  min-height:180px;
+  object-fit:cover;
+  display:block;
+}
+.business-card > .business-image-link{
+  display:block;
+  width:100%;
+  max-width:100%;
+  margin:0;
+  box-sizing:border-box;
+}
+.business-card > .business-gallery{
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+}
+.business-card img{max-width:100%;}
+
+@media(max-width:760px){
+  /* En celular el encabezado deja de ser sticky para no tapar los filtros y las tarjetas. */
+  header{
+    position:relative;
+    width:100%;
+    overflow:hidden;
+  }
+  main{width:100%;max-width:100%;overflow-x:hidden;}
+  .business-section{width:100%;max-width:100%;}
+  .business-grid{width:100%;max-width:100%;grid-template-columns:minmax(0,1fr);}
+  .business-card{width:100%;max-width:100%;overflow:hidden;}
+  .business-img,
+  .business-card > img,
+  .business-card > .business-image-link > img{
+    width:100%;
+    max-width:100%;
+    height:180px;
+    min-height:180px;
+    object-fit:cover;
+  }
+  .business-image-link{width:100%;max-width:100%;}
+  .business-gallery{width:100%;max-width:100%;overflow-x:auto;}
+}
