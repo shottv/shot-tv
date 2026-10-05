@@ -42,8 +42,10 @@ function render(){
         <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
       </div>
       ${usuario?`<div class="card-actions" onclick="event.stopPropagation();">
-        <button class="move" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir">⬆️</button>
-        <button class="move" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar">⬇️</button>
+        <button class="move" onclick="moverPelicula(${Number(m.id)}, -2)" title="Enviar al principio">⏫</button>
+        <button class="move" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir una posición">⬆️</button>
+        <button class="move" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar una posición">⬇️</button>
+        <button class="move" onclick="moverPelicula(${Number(m.id)}, 2)" title="Enviar al final">⏬</button>
         <button class="edit" onclick="editar(${Number(m.id)})">Editar</button>
         <button class="delete" onclick="eliminar(${Number(m.id)})">Eliminar</button>
       </div>`:""}
@@ -165,7 +167,9 @@ function abrirAdministracion(e){
   const adminSection=$("admin");
   adminSection.classList.remove("hidden");
   mostrarAdmin();
-  history.replaceState(null,"", "#admin");
+  // No dejamos #admin en la URL: así al recargar o cerrar sesión el cliente
+  // siempre vuelve al inicio público y nunca aterriza en el panel de acceso.
+  history.replaceState(null,"",location.pathname+location.search);
   adminSection.scrollIntoView({behavior:"smooth",block:"start"});
   setTimeout(()=>{
     if(!usuario) $("loginEmail").focus();
@@ -197,7 +201,13 @@ async function iniciarSesion(){
 async function cerrarSesion(){
   await db.auth.signOut();
   usuario=null;
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.remove("hidden");
+  $("negocios").classList.add("hidden");
+  $("buscar").classList.remove("hidden");
+  history.replaceState(null,"",location.pathname+location.search);
   mostrarAdmin();
+  requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
 }
 
 function nombreArchivoSeguro(nombre){
@@ -289,6 +299,8 @@ async function agregarPelicula(){
 async function moverPelicula(id, direccion){
   if(!usuario){alert("Debes iniciar sesión para cambiar el orden.");return;}
 
+  const scrollY=window.scrollY;
+  const scrollX=window.scrollX;
   const {data,error}=await db.from("peliculas")
     .select("id,titulo,orden,created_at")
     .order("orden",{ascending:true,nullsFirst:false})
@@ -299,8 +311,7 @@ async function moverPelicula(id, direccion){
     return;
   }
 
-  const lista=(data||[]).slice();
-  lista.sort((a,b)=>{
+  const lista=(data||[]).slice().sort((a,b)=>{
     const ao=Number(a.orden), bo=Number(b.orden);
     if(Number.isFinite(ao)&&Number.isFinite(bo)&&ao!==bo)return ao-bo;
     if(Number.isFinite(ao)!==Number.isFinite(bo))return Number.isFinite(ao)?-1:1;
@@ -309,41 +320,49 @@ async function moverPelicula(id, direccion){
 
   const indice=lista.findIndex(m=>Number(m.id)===Number(id));
   if(indice<0){alert("No se encontró la película seleccionada.");return;}
-  const nuevoIndice=indice+Number(direccion);
-  if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
 
-  // -1 = subir una posición; +1 = bajar una posición.
-  const tmp=lista[indice];
-  lista[indice]=lista[nuevoIndice];
-  lista[nuevoIndice]=tmp;
-
-  // Primero quitamos cualquier posible colisión de orden.
-  for(let i=0;i<lista.length;i++){
-    const {error:e}=await db.from("peliculas")
-      .update({orden:-(1000000000+i+1)})
-      .eq("id",lista[i].id);
+  // -2 = enviar al principio; +2 = enviar al final.
+  // -1/+1 = mover una posición.
+  if(Number(direccion)===-2 || Number(direccion)===2){
+    const ordenes=lista.map(m=>Number(m.orden)).filter(Number.isFinite);
+    const minOrden=ordenes.length?Math.min(...ordenes):0;
+    const maxOrden=ordenes.length?Math.max(...ordenes):0;
+    const nuevoOrden=Number(direccion)===-2 ? minOrden-1 : maxOrden+1;
+    const {error:e}=await db.from("peliculas").update({orden:nuevoOrden}).eq("id",id);
     if(e){
-      alert("No se pudo preparar el cambio de posición: "+e.message);
-      await cargarPeliculas();
+      alert("No se pudo cambiar la posición: "+e.message);
+      return;
+    }
+  }else{
+    const nuevoIndice=indice+Number(direccion);
+    if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
+    const actual=lista[indice];
+    const vecino=lista[nuevoIndice];
+    const ordenActual=Number(actual.orden);
+    const ordenVecino=Number(vecino.orden);
+
+    // Solo 3 actualizaciones: temporal, intercambio y limpieza.
+    // Esto evita actualizar todas las películas y hace el movimiento mucho más rápido.
+    const tempOrden=-(Date.now()+Number(actual.id));
+    const {error:e1}=await db.from("peliculas").update({orden:tempOrden}).eq("id",actual.id);
+    if(e1){alert("No se pudo preparar el cambio: "+e1.message);return;}
+
+    const {error:e2}=await db.from("peliculas").update({orden:ordenActual}).eq("id",vecino.id);
+    if(e2){
+      await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);
+      alert("No se pudo cambiar la posición: "+e2.message);
+      return;
+    }
+
+    const {error:e3}=await db.from("peliculas").update({orden:ordenVecino}).eq("id",actual.id);
+    if(e3){
+      alert("No se pudo finalizar el cambio de posición: "+e3.message);
       return;
     }
   }
 
-  // Después guardamos un orden limpio y consecutivo: 1, 2, 3...
-  for(let i=0;i<lista.length;i++){
-    const {error:e}=await db.from("peliculas")
-      .update({orden:i+1})
-      .eq("id",lista[i].id);
-    if(e){
-      alert("No se pudo guardar el nuevo orden: "+e.message);
-      await cargarPeliculas();
-      return;
-    }
-  }
-
-  const scrollY=window.scrollY;
   await cargarPeliculas();
-  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:0,behavior:"auto"}));
+  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:scrollX,behavior:"auto"}));
 }
 
 async function eliminar(id){
@@ -1368,8 +1387,10 @@ db.auth.onAuthStateChange((_event,session)=>{
   mostrarAdmin();
 });
 
-// También permite abrir el acceso administrativo directamente con #admin.
-// Si no hay sesión, mostrará únicamente el formulario de inicio de sesión.
-if(location.hash==="#admin"){
-  setTimeout(()=>abrirAdministracion(),100);
-}
+// Al abrir o recargar Shot TV siempre mostramos el inicio público.
+// El acceso administrativo se realiza únicamente con 5 clics sobre el logo.
+history.replaceState(null,"",location.pathname+location.search);
+$("admin").classList.add("hidden");
+$("catalogo").classList.remove("hidden");
+$("negocios").classList.add("hidden");
+requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));

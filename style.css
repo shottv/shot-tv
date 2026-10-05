@@ -278,3 +278,8 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .grid .poster{height:220px;flex-basis:220px}
   .grid .card-actions{min-height:40px;padding:0 8px 10px}
 }
+/* V12: controles de orden compactos y estables */
+.grid .card-actions{gap:4px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.grid .card-actions::-webkit-scrollbar{display:none}
+.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{flex:0 0 auto;white-space:nowrap}
+@media(max-width:760px){.grid .card-actions{gap:3px}.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{padding:5px 6px;font-size:10px}}
