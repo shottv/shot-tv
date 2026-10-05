@@ -341,7 +341,9 @@ async function moverPelicula(id, direccion){
     }
   }
 
+  const scrollY=window.scrollY;
   await cargarPeliculas();
+  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:0,behavior:"auto"}));
 }
 
 async function eliminar(id){
@@ -737,8 +739,10 @@ async function moverNegocio(id, direccion){
   }
 
   mensaje("negocioAdminMsg",`Orden actualizado: ${actual.nombre} ${direccion<0?"subió ⬆️":"bajó ⬇️"}.`);
+  const scrollY=window.scrollY;
   await cargarNegocios();
   await cargarNegociosAdmin();
+  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:0,behavior:"auto"}));
 }
 
 function renderGaleriaAdmin(fotos){

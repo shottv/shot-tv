@@ -263,3 +263,18 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 #player[style*="display: none"], #youtubePlayer[style*="display: none"]{display:none!important}
 #youtubePlayer{width:100%;aspect-ratio:16/9;height:auto;min-height:0;border:0;background:#000}
 @media(max-width:760px){#youtubePlayer{aspect-ratio:16/9;height:auto;min-height:220px}}
+
+
+/* V10: panel de administración oculto para visitantes */
+.admin-nav-hidden{display:none!important}
+
+/* V10: tarjetas de películas estables; los controles nunca se montan sobre otra fila */
+.grid .card{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.grid .poster{width:100%;height:270px;aspect-ratio:auto;object-fit:cover;display:block;flex:0 0 270px}
+.grid .info{flex:1 1 auto;min-width:0}
+.grid .card-actions{position:static!important;display:flex!important;flex:0 0 auto;width:100%;box-sizing:border-box;min-height:44px;align-items:center;background:#0d1b2d;clear:both}
+.grid .card-actions button{position:static!important;transform:none!important}
+@media(max-width:760px){
+  .grid .poster{height:220px;flex-basis:220px}
+  .grid .card-actions{min-height:40px;padding:0 8px 10px}
+}
