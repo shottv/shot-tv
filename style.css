@@ -258,3 +258,8 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .business-image-link{width:100%;max-width:100%;}
   .business-gallery{width:100%;max-width:100%;overflow-x:auto;}
 }
+
+/* V7: un solo reproductor visible a la vez */
+#player[style*="display: none"], #youtubePlayer[style*="display: none"]{display:none!important}
+#youtubePlayer{width:100%;aspect-ratio:16/9;height:auto;min-height:0;border:0;background:#000}
+@media(max-width:760px){#youtubePlayer{aspect-ratio:16/9;height:auto;min-height:220px}}

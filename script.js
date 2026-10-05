@@ -287,29 +287,49 @@ async function agregarPelicula(){
 }
 
 async function moverPelicula(id, direccion){
-  if(!usuario)return;
-  const ordenadas=[...peliculas].sort((a,b)=>{
-    const ao=Number(a.orden)||999999999;
-    const bo=Number(b.orden)||999999999;
-    return ao-bo;
-  });
-  const indice=ordenadas.findIndex(m=>Number(m.id)===Number(id));
-  if(indice<0)return;
-  const nuevoIndice=indice+direccion;
-  if(nuevoIndice<0 || nuevoIndice>=ordenadas.length)return;
-  const actual=ordenadas[indice];
-  const vecino=ordenadas[nuevoIndice];
-  const ordenActual=Number(actual.orden);
-  const ordenVecino=Number(vecino.orden);
-  if(!Number.isFinite(ordenActual)||!Number.isFinite(ordenVecino))return;
+  if(!usuario){alert("Debes iniciar sesión para cambiar el orden.");return;}
 
-  const {error:tempError}=await db.from("peliculas").update({orden:-Number(actual.id)}).eq("id",actual.id);
-  if(tempError){alert("No se pudo mover la película: "+tempError.message);return;}
-  const {error:vecinoError}=await db.from("peliculas").update({orden:ordenActual}).eq("id",vecino.id);
-  if(vecinoError){await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);alert("No se pudo mover la película: "+vecinoError.message);return;}
-  const {error:finalError}=await db.from("peliculas").update({orden:ordenVecino}).eq("id",actual.id);
-  if(finalError){alert("No se pudo completar el movimiento: "+finalError.message);return;}
-  await cargarPeliculas();
+  const {data,error}=await db.from("peliculas")
+    .select("id,titulo,orden,created_at")
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:true});
+  if(error){alert("No se pudo consultar el orden de las películas: "+error.message);return;}
+
+  const lista=(data||[]).slice();
+  if(lista.length<2)return;
+  const indice=lista.findIndex(m=>Number(m.id)===Number(id));
+  if(indice<0)return;
+  const nuevoIndice=indice+Number(direccion);
+  if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
+
+  // Reordena el arreglo en memoria y después lo persiste completo.
+  // Esto evita los conflictos que ocurrían al intercambiar dos valores de orden.
+  const tmp=lista[indice];
+  lista[indice]=lista[nuevoIndice];
+  lista[nuevoIndice]=tmp;
+
+  // Primera fase: valores temporales únicos para que nunca choquen entre sí.
+  for(const m of lista){
+    const {error:e}=await db.from("peliculas").update({orden:-Math.abs(Number(m.id))}).eq("id",m.id);
+    if(e){
+      alert("No se pudo preparar el cambio de orden: "+e.message);
+      await cargarPeliculas();
+      return;
+    }
+  }
+
+  // Segunda fase: orden definitivo 1, 2, 3...
+  for(let i=0;i<lista.length;i++){
+    const {error:e}=await db.from("peliculas").update({orden:i+1}).eq("id",lista[i].id);
+    if(e){
+      alert("No se pudo guardar el nuevo orden: "+e.message);
+      await cargarPeliculas();
+      return;
+    }
+  }
+
+  peliculas=lista.map((m,i)=>({...m,orden:i+1}));
+  render();
 }
 
 async function eliminar(id){
@@ -1185,6 +1205,13 @@ function esHls(url){
   return /\.m3u8(?:$|[?#])/i.test(String(url||""));
 }
 
+function mostrarSoloReproductor(tipo){
+  const video=$("player");
+  const yt=$("youtubePlayer");
+  if(video) video.style.display = tipo === "video" ? "block" : "none";
+  if(yt) yt.style.display = tipo === "youtube" ? "block" : "none";
+}
+
 function limpiarReproductores(){
   const video=$("player");
   const yt=$("youtubePlayer");
@@ -1194,10 +1221,12 @@ function limpiarReproductores(){
     video.removeAttribute("src");
     video.load();
     video.classList.add("hidden");
+    video.style.display="none";
   }
   if(yt){
     yt.src="about:blank";
     yt.classList.add("hidden");
+    yt.style.display="none";
   }
 }
 
@@ -1208,15 +1237,16 @@ function reproducirFuente(url){
   limpiarReproductores();
 
   if(youtubeId){
-    // YouTube Live, watch, youtu.be, embed y Shorts se reproducen únicamente mediante IFrame.
-    // Ocultamos por completo el reproductor HTML5 para evitar que ambos aparezcan apilados.
+    // Solo YouTube: el video HTML5 permanece completamente oculto.
     yt.src=`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
     yt.classList.remove("hidden");
+    yt.style.display="block";
     return;
   }
 
-  // MP4 y HLS usan el reproductor HTML5.
+  // Solo MP4/HLS: el iframe permanece completamente oculto.
   video.classList.remove("hidden");
+  video.style.display="block";
   if(esHls(url) && window.Hls && Hls.isSupported()){
     const hls=new Hls({enableWorker:true});
     window.__shotTvHls=hls;
