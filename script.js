@@ -1193,9 +1193,12 @@ function limpiarReproductores(){
     if(window.__shotTvHls){try{window.__shotTvHls.destroy();}catch(e){} window.__shotTvHls=null;}
     video.removeAttribute("src");
     video.load();
-    video.classList.remove("hidden");
+    video.classList.add("hidden");
   }
-  if(yt){yt.src="about:blank";yt.classList.add("hidden");}
+  if(yt){
+    yt.src="about:blank";
+    yt.classList.add("hidden");
+  }
 }
 
 function reproducirFuente(url){
@@ -1205,13 +1208,14 @@ function reproducirFuente(url){
   limpiarReproductores();
 
   if(youtubeId){
-    // YouTube Live, watch, youtu.be, embed y Shorts se reproducen mediante IFrame.
-    // YouTube exige el formato /embed/VIDEO_ID para reproductores incrustados.
+    // YouTube Live, watch, youtu.be, embed y Shorts se reproducen únicamente mediante IFrame.
+    // Ocultamos por completo el reproductor HTML5 para evitar que ambos aparezcan apilados.
     yt.src=`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
     yt.classList.remove("hidden");
     return;
   }
 
+  // MP4 y HLS usan el reproductor HTML5.
   video.classList.remove("hidden");
   if(esHls(url) && window.Hls && Hls.isSupported()){
     const hls=new Hls({enableWorker:true});
