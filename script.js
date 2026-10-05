@@ -42,10 +42,10 @@ function render(){
         <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
       </div>
       ${usuario?`<div class="card-actions" onclick="event.stopPropagation();">
-        <button class="move" onclick="moverPelicula(${Number(m.id)}, -2)" title="Enviar al principio">⏫</button>
-        <button class="move" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir una posición">⬆️</button>
-        <button class="move" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar una posición">⬇️</button>
-        <button class="move" onclick="moverPelicula(${Number(m.id)}, 2)" title="Enviar al final">⏬</button>
+        <button class="move move-first" type="button" onclick="moverPelicula(${Number(m.id)}, -2)" title="Enviar al principio">⏫ Inicio</button>
+        <button class="move move-up" type="button" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir una posición">⬆️ Subir</button>
+        <button class="move move-down" type="button" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar una posición">⬇️ Bajar</button>
+        <button class="move move-last" type="button" onclick="moverPelicula(${Number(m.id)}, 2)" title="Enviar al final">⏬ Final</button>
         <button class="edit" onclick="editar(${Number(m.id)})">Editar</button>
         <button class="delete" onclick="eliminar(${Number(m.id)})">Eliminar</button>
       </div>`:""}

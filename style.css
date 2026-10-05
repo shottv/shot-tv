@@ -283,3 +283,11 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .grid .card-actions::-webkit-scrollbar{display:none}
 .grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{flex:0 0 auto;white-space:nowrap}
 @media(max-width:760px){.grid .card-actions{gap:3px}.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{padding:5px 6px;font-size:10px}}
+
+
+/* V13: controles de orden de películas claramente visibles */
+.grid .card-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 10px 12px;position:relative;z-index:5;}
+.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{display:inline-flex;align-items:center;justify-content:center;min-height:30px;line-height:1.1;}
+.grid .card-actions .move{background:#475569;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-weight:700;}
+.grid .card-actions .move:hover{background:#64748b;}
+@media(max-width:760px){.grid .card-actions{gap:4px;padding:8px 8px 10px}.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{font-size:10px;padding:5px 6px;}}
