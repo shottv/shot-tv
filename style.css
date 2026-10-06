@@ -359,3 +359,67 @@ header {
     padding-top: 22px;
   }
 }
+/* =========================================
+   SHOT TV - CABECERA REALMENTE FIJA EN CELULAR
+   ========================================= */
+
+@media (max-width: 760px) {
+
+  header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    z-index: 99999 !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+
+    padding: 14px 14px 16px !important;
+
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+
+    background: #0b1728 !important;
+    box-shadow: 0 4px 15px #000b !important;
+  }
+
+  header .logo {
+    width: 100% !important;
+    order: 1 !important;
+  }
+
+  header nav {
+    width: 100% !important;
+    order: 2 !important;
+    display: flex !important;
+    gap: 20px !important;
+  }
+
+  header .ad-banner {
+    order: 3 !important;
+    width: 100% !important;
+    height: 54px !important;
+    flex-shrink: 0 !important;
+  }
+
+  header .ad-banner img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  header #buscar {
+    order: 4 !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    height: 52px !important;
+  }
+
+  /* Deja espacio para que las películas no queden debajo de la cabecera */
+  main {
+    padding-top: 500px !important;
+  }
+}
