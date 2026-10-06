@@ -291,3 +291,71 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .grid .card-actions .move{background:#475569;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-weight:700;}
 .grid .card-actions .move:hover{background:#64748b;}
 @media(max-width:760px){.grid .card-actions{gap:4px;padding:8px 8px 10px}.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{font-size:10px;padding:5px 6px;}}
+/* =========================================
+   BARRA FIJA DE NAVEGACIÓN - SHOT TV
+   ========================================= */
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+/* En celular mantenemos toda la cabecera visible */
+@media (max-width: 760px) {
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    height: auto;
+    min-height: 0;
+    padding: 14px 14px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: #0b1728;
+    box-shadow: 0 4px 15px #000b;
+  }
+
+  .logo {
+    width: 100%;
+    font-size: 25px;
+    order: 1;
+  }
+
+  nav {
+    width: 100%;
+    order: 2;
+    display: flex;
+    gap: 20px;
+  }
+
+  nav a {
+    font-size: 16px;
+  }
+
+  .ad-banner {
+    order: 3;
+    width: 100%;
+    height: 54px;
+    flex-shrink: 0;
+  }
+
+  .ad-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  #buscar {
+    order: 4;
+    width: 100%;
+    margin-left: 0;
+    height: 52px;
+  }
+
+  main {
+    padding-top: 22px;
+  }
+}
