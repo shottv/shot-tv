@@ -1325,13 +1325,14 @@ async function enviarPeliculaAPantalla(){
     alert("Primero abre una película.");
     return;
   }
-  if(!castInicializado || !window.cast || !cast.framework){
-    alert("La función de enviar a pantalla todavía no está disponible en este navegador.");
+  if(!castInicializado || !window.cast || !window.chrome || !chrome.cast || !cast.framework){
+    alert("Para enviar la película a tu Samsung necesitas abrir Shot TV en Google Chrome o Microsoft Edge y tener el Chromecast disponible en la misma red Wi‑Fi.");
     return;
   }
+
   const url=String(peliculaActualParaCast.url||"");
   if(!url || esYouTubeParaCast(url)){
-    alert("Esta película usa YouTube. En esta primera versión la opción de enviar a pantalla funciona con enlaces directos MP4/HLS.");
+    alert("Esta película no tiene un enlace directo compatible. El envío a pantalla funciona con películas MP4 o HLS (.m3u8). YouTube no se enviará.");
     return;
   }
 
@@ -1339,6 +1340,7 @@ async function enviarPeliculaAPantalla(){
   let session=context.getCurrentSession();
 
   try{
+    // Si todavía no hay sesión, el botón de Google Cast abrirá el selector de pantalla.
     if(!session){
       await context.requestSession();
       session=context.getCurrentSession();
@@ -1361,14 +1363,30 @@ async function enviarPeliculaAPantalla(){
 
     await session.loadMedia(request);
     if(video) video.pause();
+    console.log("Película enviada a pantalla:", peliculaActualParaCast.titulo);
   }catch(error){
     console.error("Error enviando película a pantalla:",error);
-    alert("No se pudo enviar la película a la pantalla. Verifica que la TV/Chromecast esté disponible y que el enlace de la película sea accesible.");
+    alert("No se pudo enviar la película. Verifica que tu Samsung/Chromecast esté encendido, que esté en la misma red Wi‑Fi y que el enlace MP4/HLS sea accesible desde Internet.");
   }
 }
 
+function prepararBotonCast(){
+  const boton=$("castButton");
+  if(!boton) return;
+
+  // Mantener el botón visible y accesible sin quitar el launcher oficial de Google Cast.
+  boton.style.display="block";
+  boton.style.cursor="pointer";
+  boton.setAttribute("aria-label","Enviar película a la pantalla");
+  boton.setAttribute("title","Enviar película a la pantalla");
+
+  // El launcher oficial abre el selector de Chromecast. Al iniciar la sesión,
+  // el listener de estado carga automáticamente la película actual.
+}
+
 window.inicializarShotTvCast=function(){
-  if(castInicializado || !window.cast || !cast.framework) return;
+  prepararBotonCast();
+  if(castInicializado || !window.cast || !cast.framework || !window.chrome || !chrome.cast) return;
   try{
     const context=cast.framework.CastContext.getInstance();
     context.setOptions({
@@ -1383,6 +1401,8 @@ window.inicializarShotTvCast=function(){
       }
     });
     castInicializado=true;
+    prepararBotonCast();
+    console.log("Google Cast listo para Shot TV.");
   }catch(error){
     console.error("No se pudo inicializar Google Cast:",error);
   }
@@ -1391,6 +1411,13 @@ window.inicializarShotTvCast=function(){
 if(window.__shotTvCastAvailable){
   window.inicializarShotTvCast();
 }
+
+window.addEventListener("load",()=>{
+  prepararBotonCast();
+  if(window.__shotTvCastAvailable){
+    window.inicializarShotTvCast();
+  }
+});
 
 async function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
