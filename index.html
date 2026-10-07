@@ -261,13 +261,23 @@
   <div class="playerbox">
     <button id="cerrar" class="close">✕</button>
     <button id="pantalla" class="fullscreen-btn" type="button" title="Pantalla completa">⛶</button>
+    <google-cast-launcher id="castButton" aria-label="Enviar película a la pantalla" title="Enviar película a la pantalla" style="position:absolute;right:104px;top:10px;width:42px;height:42px;z-index:4;--connected-color:#22c55e;--disconnected-color:#ffffff;"></google-cast-launcher>
     <h2 id="ptitulo"></h2>
-    <div id="playerWrap" class="player-wrap"><video id="player" controls controlsList="nodownload" autoplay playsinline preload="metadata"></video><iframe id="youtubePlayer" class="youtube-player hidden" title="Reproductor de YouTube" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+    <div id="playerWrap" class="player-wrap"><video id="player" controls autoplay playsinline preload="metadata"></video><iframe id="youtubePlayer" class="youtube-player hidden" title="Reproductor de YouTube" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
-    <script src="script.js?v=20261005-13"></script>
+<script>
+  window.__onGCastApiAvailable = function(isAvailable){
+    window.__shotTvCastAvailable = !!isAvailable;
+    if(isAvailable && typeof window.inicializarShotTvCast === "function"){
+      window.inicializarShotTvCast();
+    }
+  };
+</script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+<script src="script.js?v=20261006-15"></script>
 </body>
 </html>
