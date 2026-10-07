@@ -270,6 +270,14 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+<script>
+window.__onGCastApiAvailable = function(isAvailable){
+  window.__shotTvCastAvailable = !!isAvailable;
+  if(isAvailable && typeof window.inicializarShotTvCast === "function"){
+    window.inicializarShotTvCast();
+  }
+};
+</script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <script src="script.js?v=20261007-cast1"></script>
 </body>
