@@ -16,11 +16,11 @@
 </head>
 <body>
 <header>
-  <div class="logo">▶ Shot TV</div>
+  <div class="logo" id="shotTvLogo" title="Shot TV">▶ Shot TV</div>
   <nav>
     <a href="#catalogo" id="catalogoLink">Catálogo</a>
     <a href="#negocios" id="negociosLink">🏪 Negocios</a>
-    <a href="#admin" id="adminLink">Administrar</a>
+    <a href="#admin" id="adminLink" class="admin-nav-hidden" aria-hidden="true" tabindex="-1">Administrar</a>
   </nav>
   <div class="ad-banner" id="adBanner" aria-label="Publicidad"><span>PUBLICIDAD</span></div>
   <input id="buscar" type="search" placeholder="Buscar película...">
@@ -176,7 +176,14 @@
               <option>Otros</option>
             </select>
           </label>
-          <label>Imagen del negocio<input id="negImagen" type="file" accept="image/*"></label>
+          <label>Imagen principal del negocio<input id="negImagen" type="file" accept="image/*"></label>
+          <label>📸 Agregar más fotos<input id="negGaleria" type="file" accept="image/*" multiple></label>
+
+          <div class="full galeria-admin-panel">
+            <strong>📸 Galería de fotos</strong>
+            <small>Puedes seleccionar varias fotos a la vez. Las fotos adicionales no reemplazan la imagen principal.</small>
+            <div id="negocioGaleriaActual" class="negocio-galeria-actual"></div>
+          </div>
 
           <label class="full">Descripción
             <textarea id="negDescripcion" rows="3" placeholder="Describe brevemente el negocio..."></textarea>
@@ -243,16 +250,24 @@
   </div>
 </div>
 
+<div id="businessPhotoModal" class="business-photo-modal" aria-hidden="true">
+  <div class="business-photo-box">
+    <button id="cerrarFotoNegocio" class="business-photo-close" type="button" aria-label="Cerrar">✕</button>
+    <img id="businessPhotoViewer" src="" alt="Foto del negocio">
+  </div>
+</div>
+
 <div id="modal" class="modal">
   <div class="playerbox">
     <button id="cerrar" class="close">✕</button>
     <button id="pantalla" class="fullscreen-btn" type="button" title="Pantalla completa">⛶</button>
     <h2 id="ptitulo"></h2>
-    <video id="player" controls controlsList="nodownload" autoplay playsinline preload="metadata"></video>
+    <div id="playerWrap" class="player-wrap"><video id="player" controls controlsList="nodownload" autoplay playsinline preload="metadata"></video><iframe id="youtubePlayer" class="youtube-player hidden" title="Reproductor de YouTube" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="script.js?v=20261003-01"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+    <script src="script.js?v=20261005-13"></script>
 </body>
 </html>
