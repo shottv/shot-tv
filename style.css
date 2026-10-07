@@ -291,3 +291,76 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .grid .card-actions .move{background:#475569;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-weight:700;}
 .grid .card-actions .move:hover{background:#64748b;}
 @media(max-width:760px){.grid .card-actions{gap:4px;padding:8px 8px 10px}.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{font-size:10px;padding:5px 6px;}}
+
+/* CORRECCIÓN MÓVIL SHOT TV - separación y controles de películas */
+@media (max-width:760px){
+  html,body{
+    margin:0 !important;
+    padding:0 !important;
+    overflow-x:hidden !important;
+  }
+
+  header{
+    position:relative !important;
+    top:auto !important;
+    height:auto !important;
+    min-height:0 !important;
+    margin:0 !important;
+    padding:12px 14px !important;
+    gap:10px !important;
+  }
+
+  main{
+    width:100% !important;
+    max-width:1200px !important;
+    margin:0 auto !important;
+    padding:22px 14px 70px !important;
+  }
+
+  #catalogo{
+    margin:0 !important;
+    padding:0 !important;
+  }
+
+  #catalogo h1{
+    margin-top:0 !important;
+  }
+
+  /* Los botones permanecen debajo de la información de cada película. */
+  .grid .card-actions{
+    position:static !important;
+    top:auto !important;
+    right:auto !important;
+    bottom:auto !important;
+    left:auto !important;
+    transform:none !important;
+    width:100% !important;
+    margin:0 !important;
+    box-sizing:border-box !important;
+  }
+
+  .grid .card-actions button{
+    position:static !important;
+    transform:none !important;
+  }
+}
+
+/* BÚSQUEDA FIJA EN CELULAR - solo se modifica la barra de búsqueda */
+@media(max-width:760px){
+  #buscar{
+    position:fixed !important;
+    top:0 !important;
+    left:0 !important;
+    right:0 !important;
+    width:100% !important;
+    height:48px !important;
+    margin:0 !important;
+    border-radius:0 0 8px 8px !important;
+    z-index:100 !important;
+    box-sizing:border-box !important;
+  }
+
+  header{
+    padding-top:60px !important;
+  }
+}
