@@ -8,9 +8,56 @@ let peliculas = [];
 let usuario = null;
 let peliculaEditando = null;
 
-// Google Cast / Chromecast
+// Google Cast: solo para peliculas directas MP4/HLS. No modifica el audio del reproductor local.
 let peliculaActualParaCast = null;
 let castInicializado = false;
+
+function tipoContenidoCast(url){
+  const u=String(url||'').toLowerCase();
+  if(/\.m3u8(?:$|[?#])/.test(u)) return 'application/x-mpegurl';
+  if(/\.webm(?:$|[?#])/.test(u)) return 'video/webm';
+  return 'video/mp4';
+}
+
+function esYouTubeParaCast(url){ return !!detectarYouTube(url); }
+
+function inicializarShotTvCast(){
+  if(castInicializado || !window.cast || !window.cast.framework) return;
+  try{
+    const context=cast.framework.CastContext.getInstance();
+    context.setOptions({
+      receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+      autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+    });
+    castInicializado=true;
+  }catch(e){ console.error('Cast no disponible:',e); }
+}
+window.__onGCastApiAvailable=function(isAvailable){ if(isAvailable) inicializarShotTvCast(); };
+
+async function enviarPeliculaAPantalla(){
+  if(!peliculaActualParaCast){ alert('Primero abre una película.'); return; }
+  if(esYouTubeParaCast(peliculaActualParaCast.url)){ alert('Enviar a pantalla funciona solo con películas MP4/HLS.'); return; }
+  if(!window.cast || !cast.framework){ alert('Abre Shot TV en Google Chrome o Edge para usar Enviar a pantalla.'); return; }
+  inicializarShotTvCast();
+  try{
+    const context=cast.framework.CastContext.getInstance();
+    let session=context.getCurrentSession();
+    if(!session){ await context.requestSession(); session=context.getCurrentSession(); }
+    if(!session) return;
+    const url=String(peliculaActualParaCast.url||'');
+    const mediaInfo=new chrome.cast.media.MediaInfo(url,tipoContenidoCast(url));
+    mediaInfo.streamType=chrome.cast.media.StreamType.BUFFERED;
+    const metadata=new chrome.cast.media.GenericMediaMetadata();
+    metadata.title=String(peliculaActualParaCast.titulo||'Shot TV');
+    if(peliculaActualParaCast.portada) metadata.images=[new chrome.cast.Image(String(peliculaActualParaCast.portada))];
+    mediaInfo.metadata=metadata;
+    const request=new chrome.cast.media.LoadRequest(mediaInfo);
+    const video=$('player');
+    if(video && Number.isFinite(video.currentTime)) request.currentTime=Math.max(0,video.currentTime);
+    await session.loadMedia(request);
+  }catch(e){ console.error('Error enviando a pantalla:',e); alert('No se pudo conectar con la pantalla. Verifica que esté en la misma Wi-Fi.'); }
+}
+
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -1307,129 +1354,9 @@ function reproducirFuente(url){
   }
 }
 
-function tipoContenidoCast(url){
-  const u=String(url||"").toLowerCase();
-  if(/\.m3u8(?:$|[?#])/.test(u)) return "application/x-mpegurl";
-  if(/\.mp4(?:$|[?#])/.test(u)) return "video/mp4";
-  if(/\.webm(?:$|[?#])/.test(u)) return "video/webm";
-  if(/\.mov(?:$|[?#])/.test(u)) return "video/quicktime";
-  return "video/mp4";
-}
-
-function esYouTubeParaCast(url){
-  return !!detectarYouTube(url);
-}
-
-async function enviarPeliculaAPantalla(){
-  if(!peliculaActualParaCast){
-    alert("Primero abre una película.");
-    return;
-  }
-  if(!castInicializado || !window.cast || !window.chrome || !chrome.cast || !cast.framework){
-    alert("Para enviar la película a tu Samsung necesitas abrir Shot TV en Google Chrome o Microsoft Edge y tener el Chromecast disponible en la misma red Wi‑Fi.");
-    return;
-  }
-
-  const url=String(peliculaActualParaCast.url||"");
-  if(!url || esYouTubeParaCast(url)){
-    alert("Esta película no tiene un enlace directo compatible. El envío a pantalla funciona con películas MP4 o HLS (.m3u8). YouTube no se enviará.");
-    return;
-  }
-
-  const context=cast.framework.CastContext.getInstance();
-  let session=context.getCurrentSession();
-
-  try{
-    // Si todavía no hay sesión, el botón de Google Cast abrirá el selector de pantalla.
-    if(!session){
-      await context.requestSession();
-      session=context.getCurrentSession();
-    }
-    if(!session) return;
-
-    const mediaInfo=new chrome.cast.media.MediaInfo(url,tipoContenidoCast(url));
-    mediaInfo.streamType=chrome.cast.media.StreamType.BUFFERED;
-    mediaInfo.metadata=new chrome.cast.media.GenericMediaMetadata();
-    mediaInfo.metadata.title=String(peliculaActualParaCast.titulo||"Shot TV");
-    if(peliculaActualParaCast.portada){
-      mediaInfo.metadata.images=[new chrome.cast.Image(String(peliculaActualParaCast.portada))];
-    }
-
-    const request=new chrome.cast.media.LoadRequest(mediaInfo);
-    const video=$("player");
-    if(video && Number.isFinite(video.currentTime) && video.currentTime>0){
-      request.currentTime=video.currentTime;
-    }
-
-    await session.loadMedia(request);
-    if(video) video.pause();
-    console.log("Película enviada a pantalla:", peliculaActualParaCast.titulo);
-  }catch(error){
-    console.error("Error enviando película a pantalla:",error);
-    alert("No se pudo enviar la película. Verifica que tu Samsung/Chromecast esté encendido, que esté en la misma red Wi‑Fi y que el enlace MP4/HLS sea accesible desde Internet.");
-  }
-}
-
-function prepararBotonCast(){
-  const boton=$("castButton");
-  if(!boton) return;
-
-  // Mantener el botón visible y accesible sin quitar el launcher oficial de Google Cast.
-  boton.style.display="block";
-  boton.style.cursor="pointer";
-  boton.setAttribute("aria-label","Enviar película a la pantalla");
-  boton.setAttribute("title","Enviar película a la pantalla");
-
-  // El launcher oficial abre el selector de Chromecast. Al iniciar la sesión,
-  // el listener de estado carga automáticamente la película actual.
-}
-
-window.inicializarShotTvCast=function(){
-  prepararBotonCast();
-  if(castInicializado || !window.cast || !cast.framework || !window.chrome || !chrome.cast) return;
-  try{
-    const context=cast.framework.CastContext.getInstance();
-    context.setOptions({
-      receiverApplicationId:chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-      autoJoinPolicy:chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-    });
-    context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,event=>{
-      if(event.sessionState===cast.framework.SessionState.SESSION_STARTED || event.sessionState===cast.framework.SessionState.SESSION_RESUMED){
-        if(peliculaActualParaCast){
-          enviarPeliculaAPantalla();
-        }
-      }
-    });
-    castInicializado=true;
-    prepararBotonCast();
-    console.log("Google Cast listo para Shot TV.");
-  }catch(error){
-    console.error("No se pudo inicializar Google Cast:",error);
-  }
-};
-
-if(window.__shotTvCastAvailable){
-  window.inicializarShotTvCast();
-}
-
-window.addEventListener("load",()=>{
-  prepararBotonCast();
-  if(window.__shotTvCastAvailable){
-    window.inicializarShotTvCast();
-  }
-});
-
-async function abrir(id){
+function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
-
-  const {error}=await db.rpc("incrementar_vista",{
-    p_pelicula_id:Number(m.id)
-  });
-
-  if(error){
-    console.error("No se pudo registrar la vista:",error);
-  }
 
   if(typeof window.gtag === "function"){
     window.gtag("event","movie_play",{
@@ -1456,12 +1383,15 @@ function alternarPantallaCompleta(){
 }
 
 function cerrar(){
+  peliculaActualParaCast=null;
   $("modal").classList.remove("custom-fullscreen");
   document.body.style.overflow="";
   limpiarReproductores();
-  peliculaActualParaCast=null;
   $("modal").classList.remove("open");
 }
+
+const botonCast=$("enviarPantalla");
+if(botonCast) botonCast.onclick=enviarPeliculaAPantalla;
 
 $("buscar").oninput=render;
 $("buscarNegocio").oninput=renderNegocios;
