@@ -8,6 +8,10 @@ let peliculas = [];
 let usuario = null;
 let peliculaEditando = null;
 
+// Google Cast / Chromecast
+let peliculaActualParaCast = null;
+let castInicializado = false;
+
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 }
@@ -1303,9 +1307,102 @@ function reproducirFuente(url){
   }
 }
 
-function abrir(id){
+function tipoContenidoCast(url){
+  const u=String(url||"").toLowerCase();
+  if(/\.m3u8(?:$|[?#])/.test(u)) return "application/x-mpegurl";
+  if(/\.mp4(?:$|[?#])/.test(u)) return "video/mp4";
+  if(/\.webm(?:$|[?#])/.test(u)) return "video/webm";
+  if(/\.mov(?:$|[?#])/.test(u)) return "video/quicktime";
+  return "video/mp4";
+}
+
+function esYouTubeParaCast(url){
+  return !!detectarYouTube(url);
+}
+
+async function enviarPeliculaAPantalla(){
+  if(!peliculaActualParaCast){
+    alert("Primero abre una película.");
+    return;
+  }
+  if(!castInicializado || !window.cast || !cast.framework){
+    alert("La función de enviar a pantalla todavía no está disponible en este navegador.");
+    return;
+  }
+  const url=String(peliculaActualParaCast.url||"");
+  if(!url || esYouTubeParaCast(url)){
+    alert("Esta película usa YouTube. En esta primera versión la opción de enviar a pantalla funciona con enlaces directos MP4/HLS.");
+    return;
+  }
+
+  const context=cast.framework.CastContext.getInstance();
+  let session=context.getCurrentSession();
+
+  try{
+    if(!session){
+      await context.requestSession();
+      session=context.getCurrentSession();
+    }
+    if(!session) return;
+
+    const mediaInfo=new chrome.cast.media.MediaInfo(url,tipoContenidoCast(url));
+    mediaInfo.streamType=chrome.cast.media.StreamType.BUFFERED;
+    mediaInfo.metadata=new chrome.cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.title=String(peliculaActualParaCast.titulo||"Shot TV");
+    if(peliculaActualParaCast.portada){
+      mediaInfo.metadata.images=[new chrome.cast.Image(String(peliculaActualParaCast.portada))];
+    }
+
+    const request=new chrome.cast.media.LoadRequest(mediaInfo);
+    const video=$("player");
+    if(video && Number.isFinite(video.currentTime) && video.currentTime>0){
+      request.currentTime=video.currentTime;
+    }
+
+    await session.loadMedia(request);
+    if(video) video.pause();
+  }catch(error){
+    console.error("Error enviando película a pantalla:",error);
+    alert("No se pudo enviar la película a la pantalla. Verifica que la TV/Chromecast esté disponible y que el enlace de la película sea accesible.");
+  }
+}
+
+window.inicializarShotTvCast=function(){
+  if(castInicializado || !window.cast || !cast.framework) return;
+  try{
+    const context=cast.framework.CastContext.getInstance();
+    context.setOptions({
+      receiverApplicationId:chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+      autoJoinPolicy:chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+    });
+    context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,event=>{
+      if(event.sessionState===cast.framework.SessionState.SESSION_STARTED || event.sessionState===cast.framework.SessionState.SESSION_RESUMED){
+        if(peliculaActualParaCast){
+          enviarPeliculaAPantalla();
+        }
+      }
+    });
+    castInicializado=true;
+  }catch(error){
+    console.error("No se pudo inicializar Google Cast:",error);
+  }
+};
+
+if(window.__shotTvCastAvailable){
+  window.inicializarShotTvCast();
+}
+
+async function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
+
+  const {error}=await db.rpc("incrementar_vista",{
+    p_pelicula_id:Number(m.id)
+  });
+
+  if(error){
+    console.error("No se pudo registrar la vista:",error);
+  }
 
   if(typeof window.gtag === "function"){
     window.gtag("event","movie_play",{
@@ -1316,6 +1413,7 @@ function abrir(id){
     });
   }
 
+  peliculaActualParaCast=m;
   $("ptitulo").textContent=m.titulo;
   $("modal").classList.add("open");
   reproducirFuente(m.url);
@@ -1334,6 +1432,7 @@ function cerrar(){
   $("modal").classList.remove("custom-fullscreen");
   document.body.style.overflow="";
   limpiarReproductores();
+  peliculaActualParaCast=null;
   $("modal").classList.remove("open");
 }
 
