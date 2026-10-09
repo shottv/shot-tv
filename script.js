@@ -1423,30 +1423,85 @@ function limpiarReproductores(){
 function reproducirFuente(url){
   const video=$("player");
   const yt=$("youtubePlayer");
-  const youtubeId=detectarYouTube(url);
+  const fuente=String(url||"").trim();
+
+  if(!video || !yt || !fuente){
+    console.error("Shot TV: falta el reproductor o la URL del canal.");
+    return;
+  }
+
+  const youtubeId=detectarYouTube(fuente);
+  const esHLS=/\.m3u8(?:$|[?#])/i.test(fuente) || /[?&]f=\.m3u8(?:&|$)/i.test(fuente);
+
   limpiarReproductores();
 
+  // YouTube
   if(youtubeId){
-    // Solo YouTube: el video HTML5 permanece completamente oculto.
     yt.src=`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
     yt.classList.remove("hidden");
     yt.style.display="block";
     return;
   }
 
-  // Solo MP4/HLS: el iframe permanece completamente oculto.
+  // Mostrar el reproductor de video y ocultar el iframe.
   video.classList.remove("hidden");
   video.style.display="block";
-  if(esHls(url) && window.Hls && Hls.isSupported()){
-    const hls=new Hls({enableWorker:true});
-    window.__shotTvHls=hls;
-    hls.loadSource(url);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));
-  }else{
-    video.src=url;
-    video.play().catch(()=>{});
+  yt.classList.add("hidden");
+  yt.style.display="none";
+  video.controls=true;
+  video.autoplay=true;
+  video.playsInline=true;
+
+  // Mensaje de estado accesible, sin requerir cambios en index.html.
+  let estado=$("shotTvEstadoReproductor");
+  if(!estado){
+    estado=document.createElement("div");
+    estado.id="shotTvEstadoReproductor";
+    estado.style.cssText="display:none;background:#222;color:#fff;padding:12px;margin:8px 0;border-radius:8px;text-align:center;overflow-wrap:anywhere;";
+    if(video.parentNode) video.parentNode.insertBefore(estado,video);
   }
+  const informar=(texto)=>{estado.textContent=texto;estado.style.display="block";};
+  const limpiarEstado=()=>{estado.textContent="";estado.style.display="none";};
+
+  video.onplaying=limpiarEstado;
+  video.onwaiting=()=>informar("Cargando transmisión en vivo…");
+  video.onerror=()=>informar("No se pudo reproducir este canal. Verifica que el enlace esté activo y que el servidor permita la reproducción desde Shot TV.");
+
+  if(esHLS){
+    informar("Conectando con el canal en vivo…");
+
+    // HLS.js para Chrome, Edge y otros navegadores compatibles.
+    if(window.Hls && window.Hls.isSupported()){
+      const hls=new window.Hls({enableWorker:true,maxBufferLength:20});
+      window.__shotTvHls=hls;
+      hls.on(window.Hls.Events.MEDIA_ATTACHED,()=>hls.loadSource(fuente));
+      hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{
+        video.play().catch(()=>informar("Canal cargado. Pulsa ▶ para iniciar la reproducción."));
+      });
+      hls.on(window.Hls.Events.ERROR,(evento,datos)=>{
+        if(!datos || !datos.fatal) return;
+        console.error("Error HLS:",datos.type,datos.details);
+        informar("No se pudo cargar el canal. Puede estar inactivo o bloquear las conexiones desde Shot TV. Revisa la consola (F12). ");
+        hls.destroy();
+        if(window.__shotTvHls===hls) window.__shotTvHls=null;
+      });
+      return;
+    }
+
+    // HLS nativo, habitual en Safari.
+    if(video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")){
+      video.src=fuente;
+      video.play().catch(()=>informar("Pulsa ▶ para iniciar el canal."));
+      return;
+    }
+
+    informar("No está disponible el soporte HLS en este navegador. Comprueba que Hls.js esté cargado en index.html.");
+    return;
+  }
+
+  // Enlaces directos, por ejemplo MP4 o WebM.
+  video.src=fuente;
+  video.play().catch(()=>informar("Pulsa ▶ para iniciar la reproducción."));
 }
 
 function tipoContenidoCast(url){
