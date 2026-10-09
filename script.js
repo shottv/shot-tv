@@ -1140,27 +1140,54 @@ async function guardarCanalEnVivo(){
   const nombre=$("canalNombre").value.trim();
   const categoria=$("canalCategoria").value.trim()||"General";
   const url=$("canalUrl").value.trim();
-  const logo=$("canalLogo").value.trim()||null;
+  const logoUrl=$("canalLogo").value.trim();
+  const logoFile=$("canalLogoFile")?.files?.[0]||null;
   const activo=$("canalActivo").checked;
   if(!nombre||!url){mensaje("canalAdminMsg","Escribe el nombre y el enlace del canal.",true);return;}
-  try{new URL(url); }catch(e){mensaje("canalAdminMsg","El enlace del canal no es una URL válida.",true);return;}
+  try{new URL(url);}catch(e){mensaje("canalAdminMsg","El enlace del canal no es una URL válida.",true);return;}
   if(!/^https?:\/\//i.test(url)){mensaje("canalAdminMsg","El enlace debe comenzar con https:// o http://",true);return;}
+  if(logoUrl){try{new URL(logoUrl);}catch(e){mensaje("canalAdminMsg","La URL del logo no es válida. También puedes subir una imagen desde tu dispositivo.",true);return;}}
+  if(logoFile && !logoFile.type.startsWith("image/")){mensaje("canalAdminMsg","El archivo del logo debe ser una imagen.",true);return;}
+
   const btn=$("guardarCanal");
   if(btn.dataset.guardando === "1") return;
   btn.dataset.guardando = "1";
   btn.disabled=true;
-  mensaje("canalAdminMsg","Guardando exclusivamente en la sección En vivo...");
-  // IMPORTANTE: los canales se guardan en canales_en_vivo, nunca en peliculas.
-  const {error}=await db.from("canales_en_vivo").insert({nombre,categoria,url,logo,activo});
-  btn.disabled=false;
-  btn.dataset.guardando = "0";
-  if(error){console.error(error);mensaje("canalAdminMsg","No se guardó el canal. Revisa que hayas ejecutado el SQL de canales_en_vivo en Supabase. Detalle: "+error.message,true);return;}
-  $("canalNombre").value="";$("canalCategoria").value="";$("canalUrl").value="";$("canalLogo").value="";$("canalActivo").checked=true;
-  mensaje("canalAdminMsg","Canal agregado correctamente. 📺");
-  await cargarCanalesAdmin();
-  await cargarCanalesEnVivo();
+  let logo=logoUrl||null;
+  let logoStoragePath=null;
+  try{
+    if(logoFile){
+      mensaje("canalAdminMsg","Subiendo imagen del canal...");
+      const ext=(logoFile.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+      logoStoragePath=`canales/${crypto.randomUUID()}-${nombreArchivoSeguro(logoFile.name.replace(/\.[^.]+$/, ""))}.${ext}`;
+      const upload=await db.storage.from("posters").upload(logoStoragePath,logoFile,{cacheControl:"3600",upsert:false});
+      if(upload.error) throw new Error("No se pudo subir la imagen: "+upload.error.message);
+      logo=db.storage.from("posters").getPublicUrl(logoStoragePath).data.publicUrl;
+    }
+    mensaje("canalAdminMsg","Guardando canal en la sección En vivo...");
+    // Los canales se guardan exclusivamente en canales_en_vivo, nunca en peliculas.
+    const {error}=await db.from("canales_en_vivo").insert({nombre,categoria,url,logo,activo});
+    if(error){
+      if(logoStoragePath) await db.storage.from("posters").remove([logoStoragePath]);
+      throw new Error("No se guardó el canal. Detalle: "+error.message);
+    }
+    $("canalNombre").value="";
+    $("canalCategoria").value="";
+    $("canalUrl").value="";
+    $("canalLogo").value="";
+    if($("canalLogoFile")) $("canalLogoFile").value="";
+    $("canalActivo").checked=true;
+    mensaje("canalAdminMsg","Canal e imagen guardados correctamente en En vivo. 📺");
+    await cargarCanalesAdmin();
+    await cargarCanalesEnVivo();
+  }catch(error){
+    console.error(error);
+    mensaje("canalAdminMsg",error.message||"Ocurrió un error al guardar el canal.",true);
+  }finally{
+    btn.disabled=false;
+    btn.dataset.guardando="0";
+  }
 }
-
 async function eliminarCanalEnVivo(id){
   if(!usuario)return;
   const canalConfirm=(await db.from("canales_en_vivo").select("nombre").eq("id",id).maybeSingle());
