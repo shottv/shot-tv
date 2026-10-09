@@ -176,62 +176,10 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .solicitud-admin-main .solicitud-estado{grid-column:auto}
 }
 
-
-/* =========================
-   EN VIVO
-   ========================= */
-.live-section{margin-top:20px}.live-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.live-heading input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px 14px;border-radius:8px;outline:none;min-width:240px}.live-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}.live-card{background:#0d1b2d;border:1px solid #1b2c43;border-radius:12px;padding:14px;display:grid;grid-template-columns:68px 1fr;gap:12px;align-items:center;min-width:0}.live-logo{width:68px;height:68px;border-radius:10px;background:#07111f;display:flex;align-items:center;justify-content:center;overflow:hidden}.live-logo img{width:100%;height:100%;object-fit:contain}.live-logo span{font-size:30px}.live-card-info{min-width:0}.live-card-info h3{font-size:16px;margin:0 0 5px;overflow-wrap:anywhere}.live-card-info p{margin:0 0 6px;color:#94a3b8;font-size:12px}.live-dot{font-size:10px;font-weight:800;color:#f87171;letter-spacing:.5px}.live-play{grid-column:1/-1;border:0;border-radius:8px;padding:10px 12px;background:#dc2626;color:#fff;font-weight:800;cursor:pointer}.live-play:hover{background:#b91c1c}.live-admin-list{display:grid;gap:9px;margin-top:15px}.live-admin-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#07111f;border:1px solid #1b2c43;border-radius:8px;padding:12px}.live-admin-row>div{display:flex;flex-direction:column;gap:4px;min-width:0}.live-admin-row small{color:#94a3b8}.live-admin-row .live-url{overflow-wrap:anywhere}.live-admin-row .delete{flex-shrink:0}@media(max-width:760px){.live-heading input{width:100%;min-width:0}.live-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.live-card{grid-template-columns:48px 1fr;padding:10px;gap:8px}.live-logo{width:48px;height:48px}.live-card-info h3{font-size:14px}.live-admin-row{align-items:flex-start}.live-admin-row .delete{padding:7px}}
-
-/* CORRECCIÓN: mantener las imágenes de Negocios dentro de cada tarjeta */
-#negociosGrid .business-card {
-  min-width: 0;
-  align-self: start;
+/* Ocultar el enlace Administrar a los visitantes. El acceso privado se conserva mediante los cinco clics en el logo. */
+.admin-nav-hidden,
+#adminLink.admin-nav-hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
-#negociosGrid .business-image-link {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  line-height: 0;
-  font-size: 0;
-  appearance: none;
-  -webkit-appearance: none;
-  overflow: hidden;
-}
-#negociosGrid .business-image-link .business-img,
-#negociosGrid .business-card > .business-img {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  height: 180px;
-  min-height: 180px;
-  max-height: 180px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  object-fit: cover;
-  object-position: center;
-  box-sizing: border-box;
-}
-#negociosGrid .business-noimg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: normal;
-}
-
-
-/* Corrección firme de imágenes de negocios y galería */
-#negociosGrid .business-card { min-width: 0; width: 100%; }
-#negociosGrid .business-image-link { display:block; width:100%; height:180px; max-height:180px; overflow:hidden; padding:0; margin:0; border:0; line-height:0; }
-#negociosGrid .business-image-link > .business-img { display:block; width:100%; height:180px; min-height:180px; max-height:180px; object-fit:cover; object-position:center; }
-#negociosGrid .business-gallery { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:6px; overflow:hidden; }
-#negociosGrid .business-gallery-item { display:block; width:100%; height:76px; min-width:0; padding:0; margin:0; border:0; overflow:hidden; background:#07111f; cursor:pointer; }
-#negociosGrid .business-gallery-item img { display:block; width:100%; height:76px; min-height:76px; max-height:76px; object-fit:cover; object-position:center; }
-#negociosGrid .business-gallery-item:focus-visible, #negociosGrid .business-image-link:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
-@media(max-width:760px){ #negociosGrid .business-image-link, #negociosGrid .business-image-link > .business-img { height:160px; min-height:160px; max-height:160px; } #negociosGrid .business-gallery { grid-template-columns:repeat(3,minmax(0,1fr)); } #negociosGrid .business-gallery-item, #negociosGrid .business-gallery-item img { height:68px; min-height:68px; max-height:68px; } }
