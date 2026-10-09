@@ -1424,6 +1424,7 @@ function reproducirFuente(url){
   const video=$("player");
   const yt=$("youtubePlayer");
   const fuente=String(url||"").trim();
+  alert("URL del canal:\n" + fuente);
 
   if(!video || !yt || !fuente){
     console.error("Shot TV: falta el reproductor o la URL del canal.");
