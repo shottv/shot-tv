@@ -222,6 +222,13 @@ function nombreArchivoSeguro(nombre){
 }
 
 async function agregarPelicula(){
+  // Evita guardar por error un canal usando el botón de películas.
+  const canalNombreIngresado=$("canalNombre")?.value.trim()||"";
+  const canalUrlIngresada=$("canalUrl")?.value.trim()||"";
+  if(canalNombreIngresado || canalUrlIngresada){
+    mensaje("adminMsg","Tienes datos en el formulario de En vivo. Pulsa 📺 GUARDAR EN EN VIVO dentro de ese apartado; no uses AGREGAR PELÍCULA.",true);
+    return;
+  }
   if(!usuario){
     mensaje("adminMsg","Debes iniciar sesión.",true);
     return;
@@ -1138,11 +1145,16 @@ async function guardarCanalEnVivo(){
   if(!nombre||!url){mensaje("canalAdminMsg","Escribe el nombre y el enlace del canal.",true);return;}
   try{new URL(url); }catch(e){mensaje("canalAdminMsg","El enlace del canal no es una URL válida.",true);return;}
   if(!/^https?:\/\//i.test(url)){mensaje("canalAdminMsg","El enlace debe comenzar con https:// o http://",true);return;}
-  const btn=$("guardarCanal");btn.disabled=true;
-  mensaje("canalAdminMsg","Guardando canal...");
+  const btn=$("guardarCanal");
+  if(btn.dataset.guardando === "1") return;
+  btn.dataset.guardando = "1";
+  btn.disabled=true;
+  mensaje("canalAdminMsg","Guardando exclusivamente en la sección En vivo...");
+  // IMPORTANTE: los canales se guardan en canales_en_vivo, nunca en peliculas.
   const {error}=await db.from("canales_en_vivo").insert({nombre,categoria,url,logo,activo});
   btn.disabled=false;
-  if(error){console.error(error);mensaje("canalAdminMsg","No se pudo guardar: "+error.message,true);return;}
+  btn.dataset.guardando = "0";
+  if(error){console.error(error);mensaje("canalAdminMsg","No se guardó el canal. Revisa que hayas ejecutado el SQL de canales_en_vivo en Supabase. Detalle: "+error.message,true);return;}
   $("canalNombre").value="";$("canalCategoria").value="";$("canalUrl").value="";$("canalLogo").value="";$("canalActivo").checked=true;
   mensaje("canalAdminMsg","Canal agregado correctamente. 📺");
   await cargarCanalesAdmin();

@@ -12,7 +12,7 @@
   gtag('js', new Date());
   gtag('config', 'G-7S4QH58LL6');
 </script>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261009-live2">
 <style>.cast-btn{position:absolute;right:106px;top:10px;background:#334155;color:#fff;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:16px;z-index:3}.cast-btn:hover{background:#475569}</style>
 </head>
 <body>
@@ -140,6 +140,24 @@
         <button id="logoutBtn" class="logout">CERRAR SESIÓN</button>
       </div>
 
+      <hr class="admin-sep">
+      <section class="live-admin">
+        <h2>📺 Administrar canales en vivo</h2>
+        <p class="subtexto">Agrega canales con un enlace directo compatible, preferentemente HLS (.m3u8) o MP4. El enlace debe permitir reproducción desde el navegador.</p>
+        <div class="form">
+          <label>Nombre del canal *<input id="canalNombre" type="text" placeholder="Ej. Noticias 24 horas"></label>
+          <label>Categoría<input id="canalCategoria" type="text" placeholder="Noticias, Deportes, Infantil..."></label>
+          <label class="full">URL del canal *<input id="canalUrl" type="url" placeholder="https://servidor/canal/index.m3u8"></label>
+          <label class="full">URL del logo (opcional)<input id="canalLogo" type="url" placeholder="https://servidor/logo.png"></label>
+          <label class="ad-check"><span>Canal activo</span><input id="canalActivo" type="checkbox" checked></label>
+          <button id="guardarCanal" type="button">📺 GUARDAR EN EN VIVO</button>
+        </div>
+        <div id="canalAdminMsg" class="mensaje"></div>
+        <div id="canalesAdminLista" class="live-admin-list"></div>
+      </section>
+
+
+
       <div class="form">
         <label>Título<input id="titulo" type="text"></label>
         <label>Año<input id="anio" type="number" value="2026"></label>
@@ -153,21 +171,6 @@
       </div>
       <div id="adminMsg" class="mensaje"></div>
 
-      <hr class="admin-sep">
-      <section class="live-admin">
-        <h2>📺 Administrar canales en vivo</h2>
-        <p class="subtexto">Agrega canales con un enlace directo compatible, preferentemente HLS (.m3u8) o MP4. El enlace debe permitir reproducción desde el navegador.</p>
-        <div class="form">
-          <label>Nombre del canal *<input id="canalNombre" type="text" placeholder="Ej. Noticias 24 horas"></label>
-          <label>Categoría<input id="canalCategoria" type="text" placeholder="Noticias, Deportes, Infantil..."></label>
-          <label class="full">URL del canal *<input id="canalUrl" type="url" placeholder="https://servidor/canal/index.m3u8"></label>
-          <label class="full">URL del logo (opcional)<input id="canalLogo" type="url" placeholder="https://servidor/logo.png"></label>
-          <label class="ad-check"><span>Canal activo</span><input id="canalActivo" type="checkbox" checked></label>
-          <button id="guardarCanal" type="button">AGREGAR CANAL</button>
-        </div>
-        <div id="canalAdminMsg" class="mensaje"></div>
-        <div id="canalesAdminLista" class="live-admin-list"></div>
-      </section>
 
       <hr class="admin-sep">
       <div class="ad-admin">
@@ -300,6 +303,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-    <script src="script.js?v=20261009-live1"></script>
+    <script src="script.js?v=20261009-live2"></script>
 </body>
 </html>
