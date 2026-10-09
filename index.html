@@ -21,6 +21,7 @@
   <nav>
     <a href="#catalogo" id="catalogoLink">Catálogo</a>
     <a href="#negocios" id="negociosLink">🏪 Negocios</a>
+    <a href="#enVivo" id="enVivoLink">📺 En vivo</a>
     <a href="#admin" id="adminLink" class="admin-nav-hidden" aria-hidden="true" tabindex="-1">Administrar</a>
   </nav>
   <div class="ad-banner" id="adBanner" aria-label="Publicidad"><span>PUBLICIDAD</span></div>
@@ -32,6 +33,18 @@
     <h1>🎬 Películas</h1>
     <div id="estado" class="estado">Cargando catálogo...</div>
     <div id="grid" class="grid"></div>
+  </section>
+
+  <section id="enVivo" class="live-section hidden">
+    <div class="live-heading">
+      <div>
+        <h1>📺 En vivo</h1>
+        <p class="subtexto">Canales de televisión en directo.</p>
+      </div>
+      <input id="buscarCanal" type="search" placeholder="🔎 Buscar canal..." aria-label="Buscar canal en vivo">
+    </div>
+    <div id="canalesEstado" class="estado">Cargando canales...</div>
+    <div id="canalesGrid" class="live-grid"></div>
   </section>
 
   <section id="negocios" class="business-section hidden">
@@ -139,6 +152,22 @@
         <button id="agregar">AGREGAR PELÍCULA</button>
       </div>
       <div id="adminMsg" class="mensaje"></div>
+
+      <hr class="admin-sep">
+      <section class="live-admin">
+        <h2>📺 Administrar canales en vivo</h2>
+        <p class="subtexto">Agrega canales con un enlace directo compatible, preferentemente HLS (.m3u8) o MP4. El enlace debe permitir reproducción desde el navegador.</p>
+        <div class="form">
+          <label>Nombre del canal *<input id="canalNombre" type="text" placeholder="Ej. Noticias 24 horas"></label>
+          <label>Categoría<input id="canalCategoria" type="text" placeholder="Noticias, Deportes, Infantil..."></label>
+          <label class="full">URL del canal *<input id="canalUrl" type="url" placeholder="https://servidor/canal/index.m3u8"></label>
+          <label class="full">URL del logo (opcional)<input id="canalLogo" type="url" placeholder="https://servidor/logo.png"></label>
+          <label class="ad-check"><span>Canal activo</span><input id="canalActivo" type="checkbox" checked></label>
+          <button id="guardarCanal" type="button">AGREGAR CANAL</button>
+        </div>
+        <div id="canalAdminMsg" class="mensaje"></div>
+        <div id="canalesAdminLista" class="live-admin-list"></div>
+      </section>
 
       <hr class="admin-sep">
       <div class="ad-admin">
@@ -270,15 +299,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
-<script>
-window.__onGCastApiAvailable = function(isAvailable){
-  window.__shotTvCastAvailable = !!isAvailable;
-  if(isAvailable && typeof window.inicializarShotTvCast === "function"){
-    window.inicializarShotTvCast();
-  }
-};
-</script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-    <script src="script.js?v=20261007-cast1"></script>
+    <script src="script.js?v=20261009-live1"></script>
 </body>
 </html>

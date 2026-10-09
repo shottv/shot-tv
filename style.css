@@ -10,7 +10,7 @@ main{max-width:1200px;margin:auto;padding:30px 24px 70px}h1{font-size:27px;margi
 .card:hover{transform:translateY(-4px);box-shadow:0 12px 28px #0008}
 .poster{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:#142235}
 .info{padding:12px}.info h3{margin:0 0 6px;font-size:17px}.meta{color:#94a3b8;font-size:13px}
-.card-actions{display:flex;gap:5px;flex-wrap:wrap;padding:0 12px 12px;align-items:center;z-index:2}
+.card-actions{position:absolute;right:8px;top:8px;display:flex;gap:5px;z-index:2}
 .edit,.delete,.move{border:0;color:#fff;padding:6px 9px;border-radius:6px;cursor:pointer}
 .edit{background:#2563eb}.edit:hover{background:#1d4ed8}
 .move{background:#475569}.move:hover{background:#64748b}
@@ -25,9 +25,9 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .edit-modal.open{display:flex}.editbox{position:relative;width:min(850px,96vw);max-height:90vh;overflow:auto;background:#07111f;border-radius:12px;padding:24px;box-shadow:0 20px 60px #000}.editbox h2{margin:0 45px 20px 0}.editform{margin-top:0}
 .modal{display:none;position:fixed;inset:0;background:#000d;z-index:20;align-items:center;justify-content:center;padding:20px}
 .modal.open{display:flex}.playerbox{position:relative;width:min(1000px,96vw);background:#07111f;border-radius:12px;padding:20px;box-shadow:0 20px 60px #000}
-.playerbox h2{margin:0 45px 14px 0}.player-wrap{width:100%;background:#000;border-radius:8px;overflow:hidden}.playerbox video,.youtube-player{width:100%;height:min(75vh,562px);background:#000;border-radius:8px;display:block;border:0}.youtube-player{aspect-ratio:16/9}.playerbox .hidden{display:none!important}
+.playerbox h2{margin:0 45px 14px 0}.playerbox video{width:100%;max-height:75vh;background:#000;border-radius:8px;display:block}
 .close{position:absolute;right:12px;top:10px;background:#dc2626;color:#fff;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:16px}
-@media(max-width:760px){header{flex-wrap:wrap;height:auto;padding:15px}.logo{width:100%}nav{order:2;width:100%}.ad-banner{order:3;width:100%;height:50px}.ad-banner span{font-size:11px}#buscar{order:4;margin-left:0;width:100%}.form{grid-template-columns:1fr}.full{grid-column:auto}.grid{grid-template-columns:repeat(2,1fr)}main{padding:22px 14px}.card-actions{padding:0 8px 10px;gap:4px}.edit,.delete,.move{padding:5px 7px;font-size:11px}.editbox{padding:18px}}
+@media(max-width:760px){header{flex-wrap:wrap;height:auto;padding:15px}.logo{width:100%}nav{order:2;width:100%}.ad-banner{order:3;width:100%;height:50px}.ad-banner span{font-size:11px}#buscar{order:4;margin-left:0;width:100%}.form{grid-template-columns:1fr}.full{grid-column:auto}.grid{grid-template-columns:repeat(2,1fr)}main{padding:22px 14px}.card-actions{right:6px;top:6px;gap:4px}.edit,.delete,.move{padding:5px 7px;font-size:11px}.editbox{padding:18px}}
 
 .hidden{display:none!important}.subtexto{color:#94a3b8;margin-top:-8px;margin-bottom:18px}.loginform{display:grid;grid-template-columns:1fr 1fr auto;gap:15px;align-items:end}.loginform button{padding:13px 18px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer;height:42px}.loginform button:hover{background:#1d4ed8}.loginform button:disabled,.form button:disabled{opacity:.6;cursor:not-allowed}.mensaje{margin-top:14px;color:#93c5fd;font-size:14px}.mensaje.error{color:#fca5a5}.adminTop{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.logout{border:0;border-radius:8px;background:#334155;color:#fff;padding:10px 13px;font-weight:700;cursor:pointer}.logout:hover{background:#475569}.estado{color:#94a3b8;margin:-8px 0 18px;font-size:14px}@media(max-width:760px){.loginform{grid-template-columns:1fr}.adminTop{flex-direction:column}.logout{width:100%}}
 
@@ -40,10 +40,10 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .modal.custom-fullscreen{padding:0;background:#000}
 .modal.custom-fullscreen .playerbox{width:100vw;max-width:none;height:100dvh;max-height:none;padding:0;border-radius:0;display:flex;align-items:center;justify-content:center;background:#000}
 .modal.custom-fullscreen .playerbox h2{display:none}
-.modal.custom-fullscreen .playerbox video,.modal.custom-fullscreen .playerbox .youtube-player{width:100%;height:100%;max-height:none;object-fit:contain;border-radius:0;background:#000}
+.modal.custom-fullscreen .playerbox video{width:100%;height:100%;max-height:none;object-fit:contain;border-radius:0;background:#000}
 .modal.custom-fullscreen .fullscreen-btn{right:58px;top:12px}
 .modal.custom-fullscreen .close{right:12px;top:12px}
-@media(max-width:760px){.fullscreen-btn{right:56px;top:10px}.playerbox video,.youtube-player{height:auto;min-height:220px;aspect-ratio:16/9}.modal.custom-fullscreen .playerbox video,.modal.custom-fullscreen .playerbox .youtube-player{width:100vw;height:100dvh;aspect-ratio:auto}}
+@media(max-width:760px){.fullscreen-btn{right:56px;top:10px}.modal.custom-fullscreen .playerbox video{width:100vw;height:100dvh}}
 
 .add-first-option{display:flex;flex-direction:row;align-items:center;gap:9px;cursor:pointer}.add-first-option input{width:18px;height:18px;margin:0}
 
@@ -79,8 +79,7 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 .business-admin-data{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
 .business-admin-data strong{font-size:15px}
 .business-admin-data span{font-size:12px;color:#94a3b8}
-.business-admin-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.business-admin-actions .move:disabled{opacity:.35;cursor:not-allowed}
+.business-admin-actions{display:flex;gap:6px}
 .secondary-btn{background:#475569!important}
 .business-admin textarea{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border-radius:7px;outline:none;resize:vertical}
 .business-admin select{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border-radius:7px;outline:none}
@@ -93,7 +92,7 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
 }
 
 /* Imagen de negocio: abrir directamente en el navegador, compatible con móvil */
-.business-image-link{display:block;width:100%;padding:0;border:0;text-decoration:none;cursor:pointer;background:transparent}
+.business-image-link{display:block;text-decoration:none;cursor:pointer}
 .business-image-link .business-img{transition:transform .15s ease,opacity .15s ease}
 .business-image-link:active .business-img{transform:scale(.98);opacity:.9}
 
@@ -177,190 +176,8 @@ input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border
   .solicitud-admin-main .solicitud-estado{grid-column:auto}
 }
 
-/* =========================
-   GALERÍA DE FOTOS DE NEGOCIOS
-   ========================= */
-.business-gallery{display:flex;gap:7px;padding:8px 10px;background:#081525;overflow-x:auto;scrollbar-width:thin}
-.business-gallery-item{display:block;flex:0 0 76px;height:60px;border-radius:7px;overflow:hidden;border:1px solid #263a52;background:#142235;padding:0;cursor:pointer}
-.business-gallery-item img{width:100%;height:100%;object-fit:cover;display:block}
-.business-gallery-item:active{opacity:.75}
-.galeria-admin-panel{display:flex;flex-direction:column;gap:7px;background:#07111f;border:1px dashed #2b5875;border-radius:10px;padding:12px}
-.galeria-admin-panel strong{color:#fff;font-size:14px}
-.galeria-admin-panel small{color:#94a3b8;font-size:12px;line-height:1.4}
-.negocio-galeria-actual{margin-top:4px}
-.galeria-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:8px}
-.galeria-admin-item{background:#0d1b2d;border:1px solid #1b2c43;border-radius:8px;padding:7px;display:flex;flex-direction:column;gap:6px}
-.galeria-admin-item img{width:100%;height:82px;object-fit:cover;border-radius:6px;background:#142235}
-.delete-photo{border:0;border-radius:6px;background:#dc2626;color:#fff;padding:6px 5px;font-size:11px;font-weight:700;cursor:pointer}
-.delete-photo:hover{background:#b91c1c}
-.galeria-vacia{color:#94a3b8;font-size:12px;padding:7px 0}
-@media(max-width:700px){
-  .galeria-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .business-gallery-item{flex-basis:82px;height:64px}
-}
-
-
-/* Visor de fotos de negocios: evita navegar a la URL de Storage y elimina el problema 404 al volver en celular. */
-.business-photo-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:18px;z-index:1000}
-.business-photo-modal.open{display:flex}
-.business-photo-box{position:relative;max-width:min(96vw,1100px);max-height:92vh;display:flex;align-items:center;justify-content:center}
-.business-photo-box img{display:block;max-width:96vw;max-height:90vh;width:auto;height:auto;object-fit:contain;border-radius:8px;background:#07111f}
-.business-photo-close{position:absolute;right:-8px;top:-8px;width:38px;height:38px;border:0;border-radius:50%;background:#dc2626;color:#fff;font-size:20px;font-weight:800;cursor:pointer;z-index:2}
-@media(max-width:700px){.business-photo-modal{padding:10px}.business-photo-box{max-width:100vw;max-height:96vh}.business-photo-box img{max-width:100vw;max-height:92vh}.business-photo-close{right:4px;top:4px}}
 
 /* =========================
-   AJUSTE RESPONSIVE MOVIL - NEGOCIOS
+   EN VIVO
    ========================= */
-.business-card{min-width:0;width:100%;}
-.business-card > img,
-.business-card > .business-image-link > img{
-  width:100%;
-  max-width:100%;
-  height:180px;
-  min-height:180px;
-  object-fit:cover;
-  display:block;
-}
-.business-card > .business-image-link{
-  display:block;
-  width:100%;
-  max-width:100%;
-  margin:0;
-  box-sizing:border-box;
-}
-.business-card > .business-gallery{
-  width:100%;
-  max-width:100%;
-  box-sizing:border-box;
-}
-.business-card img{max-width:100%;}
-
-@media(max-width:760px){
-  /* En celular el encabezado deja de ser sticky para no tapar los filtros y las tarjetas. */
-  header{
-    position:relative;
-    width:100%;
-    overflow:hidden;
-  }
-  main{width:100%;max-width:100%;overflow-x:hidden;}
-  .business-section{width:100%;max-width:100%;}
-  .business-grid{width:100%;max-width:100%;grid-template-columns:minmax(0,1fr);}
-  .business-card{width:100%;max-width:100%;overflow:hidden;}
-  .business-img,
-  .business-card > img,
-  .business-card > .business-image-link > img{
-    width:100%;
-    max-width:100%;
-    height:180px;
-    min-height:180px;
-    object-fit:cover;
-  }
-  .business-image-link{width:100%;max-width:100%;}
-  .business-gallery{width:100%;max-width:100%;overflow-x:auto;}
-}
-
-/* V7: un solo reproductor visible a la vez */
-#player[style*="display: none"], #youtubePlayer[style*="display: none"]{display:none!important}
-#youtubePlayer{width:100%;aspect-ratio:16/9;height:auto;min-height:0;border:0;background:#000}
-@media(max-width:760px){#youtubePlayer{aspect-ratio:16/9;height:auto;min-height:220px}}
-
-
-/* V10: panel de administración oculto para visitantes */
-.admin-nav-hidden{display:none!important}
-
-/* V10: tarjetas de películas estables; los controles nunca se montan sobre otra fila */
-.grid .card{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-.grid .poster{width:100%;height:270px;aspect-ratio:auto;object-fit:cover;display:block;flex:0 0 270px}
-.grid .info{flex:1 1 auto;min-width:0}
-.grid .card-actions{position:static!important;display:flex!important;flex:0 0 auto;width:100%;box-sizing:border-box;min-height:44px;align-items:center;background:#0d1b2d;clear:both}
-.grid .card-actions button{position:static!important;transform:none!important}
-@media(max-width:760px){
-  .grid .poster{height:220px;flex-basis:220px}
-  .grid .card-actions{min-height:40px;padding:0 8px 10px}
-}
-/* V12: controles de orden compactos y estables */
-.grid .card-actions{gap:4px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-.grid .card-actions::-webkit-scrollbar{display:none}
-.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{flex:0 0 auto;white-space:nowrap}
-@media(max-width:760px){.grid .card-actions{gap:3px}.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{padding:5px 6px;font-size:10px}}
-
-
-/* V13: controles de orden de películas claramente visibles */
-.grid .card-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 10px 12px;position:relative;z-index:5;}
-.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{display:inline-flex;align-items:center;justify-content:center;min-height:30px;line-height:1.1;}
-.grid .card-actions .move{background:#475569;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-weight:700;}
-.grid .card-actions .move:hover{background:#64748b;}
-@media(max-width:760px){.grid .card-actions{gap:4px;padding:8px 8px 10px}.grid .card-actions .move,.grid .card-actions .edit,.grid .card-actions .delete{font-size:10px;padding:5px 6px;}}
-
-/* CORRECCIÓN MÓVIL SHOT TV - separación y controles de películas */
-@media (max-width:760px){
-  html,body{
-    margin:0 !important;
-    padding:0 !important;
-    overflow-x:hidden !important;
-  }
-
-  header{
-    position:relative !important;
-    top:auto !important;
-    height:auto !important;
-    min-height:0 !important;
-    margin:0 !important;
-    padding:12px 14px !important;
-    gap:10px !important;
-  }
-
-  main{
-    width:100% !important;
-    max-width:1200px !important;
-    margin:0 auto !important;
-    padding:22px 14px 70px !important;
-  }
-
-  #catalogo{
-    margin:0 !important;
-    padding:0 !important;
-  }
-
-  #catalogo h1{
-    margin-top:0 !important;
-  }
-
-  /* Los botones permanecen debajo de la información de cada película. */
-  .grid .card-actions{
-    position:static !important;
-    top:auto !important;
-    right:auto !important;
-    bottom:auto !important;
-    left:auto !important;
-    transform:none !important;
-    width:100% !important;
-    margin:0 !important;
-    box-sizing:border-box !important;
-  }
-
-  .grid .card-actions button{
-    position:static !important;
-    transform:none !important;
-  }
-}
-
-/* BÚSQUEDA FIJA EN CELULAR - solo se modifica la barra de búsqueda */
-@media(max-width:760px){
-  #buscar{
-    position:fixed !important;
-    top:0 !important;
-    left:0 !important;
-    right:0 !important;
-    width:100% !important;
-    height:48px !important;
-    margin:0 !important;
-    border-radius:0 0 8px 8px !important;
-    z-index:100 !important;
-    box-sizing:border-box !important;
-  }
-
-  header{
-    padding-top:60px !important;
-  }
-}
+.live-section{margin-top:20px}.live-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.live-heading input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px 14px;border-radius:8px;outline:none;min-width:240px}.live-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}.live-card{background:#0d1b2d;border:1px solid #1b2c43;border-radius:12px;padding:14px;display:grid;grid-template-columns:68px 1fr;gap:12px;align-items:center;min-width:0}.live-logo{width:68px;height:68px;border-radius:10px;background:#07111f;display:flex;align-items:center;justify-content:center;overflow:hidden}.live-logo img{width:100%;height:100%;object-fit:contain}.live-logo span{font-size:30px}.live-card-info{min-width:0}.live-card-info h3{font-size:16px;margin:0 0 5px;overflow-wrap:anywhere}.live-card-info p{margin:0 0 6px;color:#94a3b8;font-size:12px}.live-dot{font-size:10px;font-weight:800;color:#f87171;letter-spacing:.5px}.live-play{grid-column:1/-1;border:0;border-radius:8px;padding:10px 12px;background:#dc2626;color:#fff;font-weight:800;cursor:pointer}.live-play:hover{background:#b91c1c}.live-admin-list{display:grid;gap:9px;margin-top:15px}.live-admin-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#07111f;border:1px solid #1b2c43;border-radius:8px;padding:12px}.live-admin-row>div{display:flex;flex-direction:column;gap:4px;min-width:0}.live-admin-row small{color:#94a3b8}.live-admin-row .live-url{overflow-wrap:anywhere}.live-admin-row .delete{flex-shrink:0}@media(max-width:760px){.live-heading input{width:100%;min-width:0}.live-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.live-card{grid-template-columns:48px 1fr;padding:10px;gap:8px}.live-logo{width:48px;height:48px}.live-card-info h3{font-size:14px}.live-admin-row{align-items:flex-start}.live-admin-row .delete{padding:7px}}

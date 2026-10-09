@@ -7,89 +7,11 @@ const $ = id => document.getElementById(id);
 let peliculas = [];
 let usuario = null;
 let peliculaEditando = null;
+let canalesEnVivo = [];
 
-// Google Cast: solo para peliculas directas MP4/HLS. No modifica el audio del reproductor local.
+// Google Cast / Chromecast
 let peliculaActualParaCast = null;
 let castInicializado = false;
-
-function tipoContenidoCast(url){
-  const u=String(url||'').toLowerCase();
-  if(/\.m3u8(?:$|[?#])/.test(u)) return 'application/x-mpegurl';
-  if(/\.webm(?:$|[?#])/.test(u)) return 'video/webm';
-  return 'video/mp4';
-}
-
-function esYouTubeParaCast(url){ return !!detectarYouTube(url); }
-
-function inicializarShotTvCast(){
-  if(castInicializado) return true;
-  if(!window.cast || !window.cast.framework || !window.chrome || !window.chrome.cast) return false;
-  try{
-    const context=cast.framework.CastContext.getInstance();
-    context.setOptions({
-      receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-      autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-    });
-    castInicializado=true;
-    return true;
-  }catch(e){
-    console.error('Cast no disponible:',e);
-    return false;
-  }
-}
-if(window.__shotTvCastAvailable){
-  inicializarShotTvCast();
-}
-
-async function enviarPeliculaAPantalla(){
-  if(!peliculaActualParaCast){
-    alert('Primero abre una película.');
-    return;
-  }
-  if(esYouTubeParaCast(peliculaActualParaCast.url)){
-    alert('Enviar a pantalla funciona solo con películas MP4/HLS.');
-    return;
-  }
-  if(!inicializarShotTvCast()){
-    alert('Google Cast todavía no está listo. Abre Shot TV en Google Chrome o Edge y vuelve a pulsar 📺.');
-    return;
-  }
-
-  try{
-    const context=cast.framework.CastContext.getInstance();
-    let session=context.getCurrentSession();
-    if(!session){
-      await context.requestSession();
-      session=context.getCurrentSession();
-    }
-    if(!session){
-      alert('No se seleccionó ninguna pantalla.');
-      return;
-    }
-
-    const url=String(peliculaActualParaCast.url||'');
-    const mediaInfo=new chrome.cast.media.MediaInfo(url,tipoContenidoCast(url));
-    mediaInfo.streamType=chrome.cast.media.StreamType.BUFFERED;
-    const metadata=new chrome.cast.media.GenericMediaMetadata();
-    metadata.title=String(peliculaActualParaCast.titulo||'Shot TV');
-    if(peliculaActualParaCast.portada){
-      metadata.images=[new chrome.cast.Image(String(peliculaActualParaCast.portada))];
-    }
-    mediaInfo.metadata=metadata;
-
-    const request=new chrome.cast.media.LoadRequest(mediaInfo);
-    const video=$("player");
-    if(video && Number.isFinite(video.currentTime)){
-      request.currentTime=Math.max(0,video.currentTime);
-    }
-    await session.loadMedia(request);
-    if(video) video.pause();
-  }catch(e){
-    console.error('Error enviando a pantalla:',e);
-    alert('No se pudo conectar con la pantalla. Verifica que la TV/Chromecast esté en la misma Wi-Fi y que el enlace de la película sea accesible.');
-  }
-}
-
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -153,7 +75,7 @@ function mostrarAdmin(){
     adminPanel.classList.add("hidden");
   }
   render();
-  if(usuario){ cargarPublicidadAdmin(); cargarNegociosAdmin(); cargarControlSolicitudes(); }
+  if(usuario){ cargarPublicidadAdmin(); cargarNegociosAdmin(); cargarControlSolicitudes(); cargarCanalesAdmin(); }
 }
 
 function escSolicitud(v){
@@ -287,6 +209,7 @@ async function cerrarSesion(){
   $("admin").classList.add("hidden");
   $("catalogo").classList.remove("hidden");
   $("negocios").classList.add("hidden");
+  $("enVivo").classList.add("hidden");
   $("buscar").classList.remove("hidden");
   history.replaceState(null,"",location.pathname+location.search);
   mostrarAdmin();
@@ -1129,11 +1052,111 @@ function abrirNegocios(e){
   if(e)e.preventDefault();
   $("admin").classList.add("hidden");
   $("catalogo").classList.add("hidden");
+  $("enVivo").classList.add("hidden");
   $("buscar").classList.add("hidden");
   $("negocios").classList.remove("hidden");
   history.replaceState(null,"","#negocios");
   $("negocios").scrollIntoView({behavior:"smooth",block:"start"});
   cargarNegocios();
+}
+
+function abrirEnVivo(e){
+  if(e)e.preventDefault();
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.add("hidden");
+  $("negocios").classList.add("hidden");
+  $("buscar").classList.add("hidden");
+  $("enVivo").classList.remove("hidden");
+  history.replaceState(null,"","#enVivo");
+  $("enVivo").scrollIntoView({behavior:"smooth",block:"start"});
+  cargarCanalesEnVivo();
+}
+
+// =========================
+// CANALES EN VIVO
+// =========================
+async function cargarCanalesEnVivo(){
+  const estado=$("canalesEstado");
+  if(!estado)return;
+  estado.textContent="Cargando canales...";
+  const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,logo,url,activo,created_at").eq("activo",true).order("nombre",{ascending:true});
+  if(error){
+    console.error("No se pudieron cargar los canales en vivo:",error);
+    estado.textContent="No se pudieron cargar los canales. Verifica que hayas creado la tabla canales_en_vivo en Supabase con el archivo SQL incluido.";
+    $("canalesGrid").innerHTML="";
+    return;
+  }
+  canalesEnVivo=data||[];
+  renderCanalesEnVivo();
+}
+
+function renderCanalesEnVivo(){
+  const grid=$("canalesGrid"), estado=$("canalesEstado");
+  if(!grid||!estado)return;
+  const q=String($("buscarCanal")?.value||"").toLowerCase().trim();
+  const lista=canalesEnVivo.filter(c=>String(c.nombre||"").toLowerCase().includes(q)||String(c.categoria||"").toLowerCase().includes(q));
+  estado.textContent=lista.length?`${lista.length} canal(es) disponible(s).`:"Todavía no hay canales en vivo. Vuelve más tarde.";
+  grid.innerHTML=lista.map(c=>`<article class="live-card">
+    <div class="live-logo">${c.logo?`<img src="${esc(c.logo)}" alt="Logo ${esc(c.nombre)}" loading="lazy" onerror="this.style.display='none'">`:`<span>📺</span>`}</div>
+    <div class="live-card-info"><h3>${esc(c.nombre)}</h3><p>${esc(c.categoria||"En vivo")}</p><span class="live-dot">● EN VIVO</span></div>
+    <button type="button" class="live-play" onclick="reproducirCanalEnVivo(${Number(c.id)})">▶ VER CANAL</button>
+  </article>`).join("");
+}
+
+function reproducirCanalEnVivo(id){
+  const canal=canalesEnVivo.find(c=>Number(c.id)===Number(id));
+  if(!canal)return;
+  if(detectarYouTube(canal.url)){
+    alert("Esta sección está configurada para enlaces directos de canales (HLS/M3U8 o MP4), no para enlaces de YouTube.");
+    return;
+  }
+  $("ptitulo").textContent="📺 "+canal.nombre;
+  $("modal").classList.add("open");
+  reproducirFuente(canal.url);
+}
+
+async function cargarCanalesAdmin(){
+  if(!usuario)return;
+  const cont=$("canalesAdminLista");
+  if(!cont)return;
+  const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,url,logo,activo").order("created_at",{ascending:false});
+  if(error){
+    console.error(error);
+    cont.innerHTML='<p class="mensaje error">No se pudieron consultar los canales. Revisa la tabla y las políticas de Supabase.</p>';
+    return;
+  }
+  cont.innerHTML=(data||[]).map(c=>`<div class="live-admin-row"><div><strong>${esc(c.nombre)}</strong><small>${esc(c.categoria||"General")} · ${c.activo?"Activo":"Inactivo"}</small><small class="live-url">${esc(c.url)}</small></div><button type="button" class="delete" onclick="eliminarCanalEnVivo(${Number(c.id)})">Eliminar</button></div>`).join("")||'<p class="ad-empty">Aún no agregas canales.</p>';
+}
+
+async function guardarCanalEnVivo(){
+  if(!usuario){mensaje("canalAdminMsg","Inicia sesión como administrador.",true);return;}
+  const nombre=$("canalNombre").value.trim();
+  const categoria=$("canalCategoria").value.trim()||"General";
+  const url=$("canalUrl").value.trim();
+  const logo=$("canalLogo").value.trim()||null;
+  const activo=$("canalActivo").checked;
+  if(!nombre||!url){mensaje("canalAdminMsg","Escribe el nombre y el enlace del canal.",true);return;}
+  try{new URL(url); }catch(e){mensaje("canalAdminMsg","El enlace del canal no es una URL válida.",true);return;}
+  if(!/^https?:\/\//i.test(url)){mensaje("canalAdminMsg","El enlace debe comenzar con https:// o http://",true);return;}
+  const btn=$("guardarCanal");btn.disabled=true;
+  mensaje("canalAdminMsg","Guardando canal...");
+  const {error}=await db.from("canales_en_vivo").insert({nombre,categoria,url,logo,activo});
+  btn.disabled=false;
+  if(error){console.error(error);mensaje("canalAdminMsg","No se pudo guardar: "+error.message,true);return;}
+  $("canalNombre").value="";$("canalCategoria").value="";$("canalUrl").value="";$("canalLogo").value="";$("canalActivo").checked=true;
+  mensaje("canalAdminMsg","Canal agregado correctamente. 📺");
+  await cargarCanalesAdmin();
+  await cargarCanalesEnVivo();
+}
+
+async function eliminarCanalEnVivo(id){
+  if(!usuario)return;
+  const canalConfirm=(await db.from("canales_en_vivo").select("nombre").eq("id",id).maybeSingle());
+  if(canalConfirm.error){alert("No se pudo consultar el canal: "+canalConfirm.error.message);return;}
+  if(!confirm(`¿Eliminar el canal "${canalConfirm.data?.nombre||""}"?`))return;
+  const {error}=await db.from("canales_en_vivo").delete().eq("id",id);
+  if(error){alert("No se pudo eliminar: "+error.message);return;}
+  await cargarCanalesAdmin();await cargarCanalesEnVivo();
 }
 
 const WHATSAPP_REGISTRO_NEGOCIO = "526561273144";
@@ -1306,6 +1329,7 @@ function abrirCatalogo(e){
   if(e)e.preventDefault();
   $("buscar").classList.remove("hidden");
   $("negocios").classList.add("hidden");
+  $("enVivo").classList.add("hidden");
   $("admin").classList.add("hidden");
   $("catalogo").classList.remove("hidden");
   history.replaceState(null,"","#catalogo");
@@ -1386,9 +1410,102 @@ function reproducirFuente(url){
   }
 }
 
-function abrir(id){
+function tipoContenidoCast(url){
+  const u=String(url||"").toLowerCase();
+  if(/\.m3u8(?:$|[?#])/.test(u)) return "application/x-mpegurl";
+  if(/\.mp4(?:$|[?#])/.test(u)) return "video/mp4";
+  if(/\.webm(?:$|[?#])/.test(u)) return "video/webm";
+  if(/\.mov(?:$|[?#])/.test(u)) return "video/quicktime";
+  return "video/mp4";
+}
+
+function esYouTubeParaCast(url){
+  return !!detectarYouTube(url);
+}
+
+async function enviarPeliculaAPantalla(){
+  if(!peliculaActualParaCast){
+    alert("Primero abre una película.");
+    return;
+  }
+  if(!castInicializado || !window.cast || !cast.framework){
+    alert("La función de enviar a pantalla todavía no está disponible en este navegador.");
+    return;
+  }
+  const url=String(peliculaActualParaCast.url||"");
+  if(!url || esYouTubeParaCast(url)){
+    alert("Esta película usa YouTube. En esta primera versión la opción de enviar a pantalla funciona con enlaces directos MP4/HLS.");
+    return;
+  }
+
+  const context=cast.framework.CastContext.getInstance();
+  let session=context.getCurrentSession();
+
+  try{
+    if(!session){
+      await context.requestSession();
+      session=context.getCurrentSession();
+    }
+    if(!session) return;
+
+    const mediaInfo=new chrome.cast.media.MediaInfo(url,tipoContenidoCast(url));
+    mediaInfo.streamType=chrome.cast.media.StreamType.BUFFERED;
+    mediaInfo.metadata=new chrome.cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.title=String(peliculaActualParaCast.titulo||"Shot TV");
+    if(peliculaActualParaCast.portada){
+      mediaInfo.metadata.images=[new chrome.cast.Image(String(peliculaActualParaCast.portada))];
+    }
+
+    const request=new chrome.cast.media.LoadRequest(mediaInfo);
+    const video=$("player");
+    if(video && Number.isFinite(video.currentTime) && video.currentTime>0){
+      request.currentTime=video.currentTime;
+    }
+
+    await session.loadMedia(request);
+    if(video) video.pause();
+  }catch(error){
+    console.error("Error enviando película a pantalla:",error);
+    alert("No se pudo enviar la película a la pantalla. Verifica que la TV/Chromecast esté disponible y que el enlace de la película sea accesible.");
+  }
+}
+
+window.inicializarShotTvCast=function(){
+  if(castInicializado || !window.cast || !cast.framework) return;
+  try{
+    const context=cast.framework.CastContext.getInstance();
+    context.setOptions({
+      receiverApplicationId:chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+      autoJoinPolicy:chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+    });
+    context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,event=>{
+      if(event.sessionState===cast.framework.SessionState.SESSION_STARTED || event.sessionState===cast.framework.SessionState.SESSION_RESUMED){
+        if(peliculaActualParaCast){
+          enviarPeliculaAPantalla();
+        }
+      }
+    });
+    castInicializado=true;
+  }catch(error){
+    console.error("No se pudo inicializar Google Cast:",error);
+  }
+};
+
+if(window.__shotTvCastAvailable){
+  window.inicializarShotTvCast();
+}
+
+async function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
+
+  const {error}=await db.rpc("incrementar_vista",{
+    p_pelicula_id:Number(m.id)
+  });
+
+  if(error){
+    console.error("No se pudo registrar la vista:",error);
+  }
 
   if(typeof window.gtag === "function"){
     window.gtag("event","movie_play",{
@@ -1415,20 +1532,11 @@ function alternarPantallaCompleta(){
 }
 
 function cerrar(){
-  peliculaActualParaCast=null;
   $("modal").classList.remove("custom-fullscreen");
   document.body.style.overflow="";
   limpiarReproductores();
+  peliculaActualParaCast=null;
   $("modal").classList.remove("open");
-}
-
-const botonCast=$("enviarPantalla");
-if(botonCast){
-  botonCast.addEventListener("click", function(event){
-    event.preventDefault();
-    event.stopPropagation();
-    enviarPeliculaAPantalla();
-  });
 }
 
 $("buscar").oninput=render;
@@ -1436,6 +1544,7 @@ $("buscarNegocio").oninput=renderNegocios;
 $("filtroCategoria").onchange=renderNegocios;
 $("catalogoLink").onclick=abrirCatalogo;
 $("negociosLink").onclick=abrirNegocios;
+$("enVivoLink").onclick=abrirEnVivo;
 $("adminLink").onclick=abrirAdministracion;
 
 // Acceso discreto al panel de administración: 5 clics rápidos sobre el logo.
@@ -1461,6 +1570,8 @@ $("agregar").onclick=agregarPelicula;
 $("guardarEdicion").onclick=guardarEdicion;
 $("guardarAd").onclick=guardarPublicidad;
 $("guardarNegocio").onclick=guardarNegocio;
+$("guardarCanal").onclick=guardarCanalEnVivo;
+$("buscarCanal").oninput=renderCanalesEnVivo;
 $("refrescarSolicitudes").onclick=cargarControlSolicitudes;
 $("cancelarNegocio").onclick=()=>{limpiarFormularioNegocio();mensaje("negocioAdminMsg","");};
 $("cerrarEdicion").onclick=cerrarEdicion;
@@ -1496,4 +1607,5 @@ history.replaceState(null,"",location.pathname+location.search);
 $("admin").classList.add("hidden");
 $("catalogo").classList.remove("hidden");
 $("negocios").classList.add("hidden");
+$("enVivo").classList.add("hidden");
 requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
