@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Shot TV — Reproductor en vivo</title>
+  <style>
+    :root{color-scheme:dark;--bg:#061321;--panel:#0d2032;--line:#203b53;--text:#f4f8fc;--muted:#9eb6ca;--accent:#18b6e8}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(ellipse at top,#102a41 0%,var(--bg) 62%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;flex-direction:column}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px clamp(16px,4vw,36px);border-bottom:1px solid var(--line);background:#061321eF}
+    .brand{font-weight:800;font-size:20px;letter-spacing:.2px}.brand span{color:var(--accent)}
+    .back{color:var(--text);text-decoration:none;border:1px solid var(--line);padding:9px 13px;border-radius:10px;font-size:14px}
+    main{width:min(1100px,100%);margin:auto;padding:24px 16px 32px;flex:1}
+    h1{font-size:clamp(20px,3vw,30px);margin:0 0 6px;overflow-wrap:anywhere} .subtitle{margin:0 0 18px;color:var(--muted);font-size:14px}
+    .screen{background:#000;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px #0006;aspect-ratio:16/9;display:grid;place-items:center}
+    video{display:block;width:100%;height:100%;max-height:72vh;object-fit:contain;background:#000}
+    .status{margin-top:14px;padding:12px 14px;border:1px solid var(--line);background:var(--panel);border-radius:10px;color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+    .status.error{color:#ffd3d3;border-color:#793f49}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{cursor:pointer;border:0;border-radius:10px;padding:11px 16px;background:var(--accent);color:#03111d;font-weight:750;font-size:14px}
+    button.secondary{background:var(--panel);color:var(--text);border:1px solid var(--line)}
+    footer{text-align:center;padding:16px;color:var(--muted);font-size:12px}
+    @media(max-width:600px){main{padding:18px 10px}.screen{aspect-ratio:9/16;max-height:70vh}video{max-height:70vh}header{padding:12px}.brand{font-size:18px}}
+  </style>
+</head>
+<body>
+  <header><div class="brand">📺 Shot <span>TV</span> Player</div><a class="back" href="./#enVivo">← Volver a Shot TV</a></header>
+  <main>
+    <h1 id="titulo">Canal en vivo</h1>
+    <p class="subtitle">Reproductor independiente para transmisiones MPEG-TS autorizadas.</p>
+    <div class="screen"><video id="video" controls autoplay playsinline preload="auto"></video></div>
+    <div id="estado" class="status" role="status" aria-live="polite">Preparando reproductor…</div>
+    <div class="actions"><button id="iniciar" type="button">▶ Reproducir</button><button id="pantalla" class="secondary" type="button">⛶ Pantalla completa</button></div>
+  </main>
+  <footer>La reproducción depende de la disponibilidad del canal, los códecs y los permisos de conexión del servidor.</footer>
+  <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+  <script>
+    (()=>{
+      const params=new URLSearchParams(location.search);
+      const url=params.get('url')||'';
+      const nombre=params.get('titulo')||'Canal en vivo';
+      const video=document.getElementById('video');
+      const estado=document.getElementById('estado');
+      document.getElementById('titulo').textContent=nombre;
+      let player=null;
+      const informar=(texto,error=false)=>{estado.textContent=texto;estado.classList.toggle('error',error)};
+      const esUrlHttpValida=()=>{try{const u=new URL(url);return (u.protocol==='http:'||u.protocol==='https:')&&Boolean(u.hostname)}catch(e){return false}};
+      function iniciar(){
+        if(!esUrlHttpValida()){informar('El enlace del canal falta o no es una URL HTTP/HTTPS válida.',true);return}
+        if(!window.mpegts||!window.mpegts.isSupported()){
+          informar('Este navegador no admite la reproducción MPEG-TS necesaria. Prueba con una versión actualizada de Chrome o Edge.',true);return;
+        }
+        try{
+          if(player){try{player.pause();player.unload();player.detachMediaElement();player.destroy()}catch(e){} player=null}
+          informar('Conectando con '+nombre+'…');
+          player=window.mpegts.createPlayer({type:'mpegts',isLive:true,url},{enableWorker:true,enableStashBuffer:false,stashInitialSize:128,liveBufferLatencyChasing:true});
+          player.on(window.mpegts.Events.ERROR,(tipo,detalle,info)=>{
+            console.error('Shot TV MPEG-TS error:',tipo,detalle,info);
+            informar('No se pudo reproducir el canal. Puede estar fuera de línea o el servidor puede bloquear la conexión desde esta página (HTTP/HTTPS/CORS).',true);
+          });
+          video.onplaying=()=>informar('Reproduciendo: '+nombre);
+          video.onerror=()=>informar('El navegador no pudo decodificar la transmisión. Comprueba el enlace y los códecs del canal.',true);
+          player.attachMediaElement(video);player.load();
+          const p=player.play();if(p&&typeof p.catch==='function')p.catch(()=>informar('El canal está cargado. Pulsa «Reproducir» para iniciar el audio/video.'));
+        }catch(e){console.error(e);informar('No se pudo iniciar el reproductor MPEG-TS.',true)}
+      }
+      document.getElementById('iniciar').addEventListener('click',()=>{if(player){player.play().then(()=>informar('Reproduciendo: '+nombre)).catch(()=>iniciar())}else iniciar()});
+      document.getElementById('pantalla').addEventListener('click',()=>{const target=document.querySelector('.screen');if(target.requestFullscreen)target.requestFullscreen().catch(()=>{});else if(video.webkitEnterFullscreen)video.webkitEnterFullscreen()});
+      window.addEventListener('pagehide',()=>{if(player){try{player.pause();player.unload();player.detachMediaElement();player.destroy()}catch(e){}player=null}});
+      iniciar();
+    })();
+  </script>
+</body>
+</html>
