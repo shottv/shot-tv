@@ -8,6 +8,8 @@ let peliculas = [];
 let usuario = null;
 let peliculaEditando = null;
 let canalesEnVivo = [];
+let canalEditandoId = null;
+let canalLogoActual = null;
 
 // Google Cast / Chromecast
 let peliculaActualParaCast = null;
@@ -1132,7 +1134,39 @@ async function cargarCanalesAdmin(){
     cont.innerHTML='<p class="mensaje error">No se pudieron consultar los canales. Revisa la tabla y las políticas de Supabase.</p>';
     return;
   }
-  cont.innerHTML=(data||[]).map(c=>`<div class="live-admin-row"><div><strong>${esc(c.nombre)}</strong><small>${esc(c.categoria||"General")} · ${c.activo?"Activo":"Inactivo"}</small><small class="live-url">${esc(c.url)}</small></div><button type="button" class="delete" onclick="eliminarCanalEnVivo(${Number(c.id)})">Eliminar</button></div>`).join("")||'<p class="ad-empty">Aún no agregas canales.</p>';
+  cont.innerHTML=(data||[]).map(c=>`<div class="live-admin-row"><div><strong>${esc(c.nombre)}</strong><small>${esc(c.categoria||"General")} · ${c.activo?"Activo":"Inactivo"}</small><small class="live-url">${esc(c.url)}</small></div><div class="live-admin-actions"><button type="button" class="edit" onclick="editarCanalEnVivo(${Number(c.id)})">Editar</button><button type="button" class="delete" onclick="eliminarCanalEnVivo(${Number(c.id)})">Eliminar</button></div></div>`).join("")||'<p class="ad-empty">Aún no agregas canales.</p>';
+}
+
+async function editarCanalEnVivo(id){
+  if(!usuario)return;
+  const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,url,logo,activo").eq("id",id).maybeSingle();
+  if(error||!data){alert("No se pudo abrir el canal para editarlo."+(error?" Detalle: "+error.message:""));return;}
+  canalEditandoId=Number(data.id);
+  canalLogoActual=data.logo||null;
+  $("canalNombre").value=data.nombre||"";
+  $("canalCategoria").value=data.categoria||"";
+  $("canalUrl").value=data.url||"";
+  $("canalLogo").value=data.logo||"";
+  if($("canalLogoFile"))$("canalLogoFile").value="";
+  $("canalActivo").checked=!!data.activo;
+  $("guardarCanal").textContent="💾 GUARDAR CAMBIOS";
+  $("cancelarEdicionCanal").hidden=false;
+  mensaje("canalAdminMsg",`Editando: ${data.nombre}. Cambia los datos y pulsa GUARDAR CAMBIOS.`);
+  $("canalNombre").scrollIntoView({behavior:"smooth",block:"center"});
+}
+
+function cancelarEdicionCanal(){
+  canalEditandoId=null;
+  canalLogoActual=null;
+  $("canalNombre").value="";
+  $("canalCategoria").value="";
+  $("canalUrl").value="";
+  $("canalLogo").value="";
+  if($("canalLogoFile"))$("canalLogoFile").value="";
+  $("canalActivo").checked=true;
+  $("guardarCanal").textContent="📺 GUARDAR EN EN VIVO";
+  $("cancelarEdicionCanal").hidden=true;
+  mensaje("canalAdminMsg","");
 }
 
 async function guardarCanalEnVivo(){
@@ -1153,7 +1187,7 @@ async function guardarCanalEnVivo(){
   if(btn.dataset.guardando === "1") return;
   btn.dataset.guardando = "1";
   btn.disabled=true;
-  let logo=logoUrl||null;
+  let logo=logoUrl||canalLogoActual||null;
   let logoStoragePath=null;
   try{
     if(logoFile){
@@ -1164,20 +1198,19 @@ async function guardarCanalEnVivo(){
       if(upload.error) throw new Error("No se pudo subir la imagen: "+upload.error.message);
       logo=db.storage.from("posters").getPublicUrl(logoStoragePath).data.publicUrl;
     }
-    mensaje("canalAdminMsg","Guardando canal en la sección En vivo...");
-    // Los canales se guardan exclusivamente en canales_en_vivo, nunca en peliculas.
-    const {error}=await db.from("canales_en_vivo").insert({nombre,categoria,url,logo,activo});
-    if(error){
+    mensaje("canalAdminMsg",canalEditandoId?"Guardando cambios del canal...":"Guardando canal en la sección En vivo...");
+    // Los canales se guardan/actualizan exclusivamente en canales_en_vivo, nunca en peliculas.
+    const cambios={nombre,categoria,url,logo,activo};
+    const resultado=canalEditandoId
+      ? await db.from("canales_en_vivo").update(cambios).eq("id",canalEditandoId)
+      : await db.from("canales_en_vivo").insert(cambios);
+    if(resultado.error){
       if(logoStoragePath) await db.storage.from("posters").remove([logoStoragePath]);
-      throw new Error("No se guardó el canal. Detalle: "+error.message);
+      throw new Error("No se pudo guardar el canal. Detalle: "+resultado.error.message);
     }
-    $("canalNombre").value="";
-    $("canalCategoria").value="";
-    $("canalUrl").value="";
-    $("canalLogo").value="";
-    if($("canalLogoFile")) $("canalLogoFile").value="";
-    $("canalActivo").checked=true;
-    mensaje("canalAdminMsg","Canal e imagen guardados correctamente en En vivo. 📺");
+    const eraEdicion=canalEditandoId!==null;
+    cancelarEdicionCanal();
+    mensaje("canalAdminMsg",eraEdicion?"Cambios del canal guardados correctamente. 📺":"Canal e imagen guardados correctamente en En vivo. 📺");
     await cargarCanalesAdmin();
     await cargarCanalesEnVivo();
   }catch(error){
@@ -1485,19 +1518,16 @@ function reproducirFuente(url){
           url:datos.url||fuente
         });
         if(!datos.fatal) return;
-        const detalle=String(datos.details||"error_desconocido");
-        const tipo=String(datos.type||"tipo_desconocido");
         if(datos.type===window.Hls.ErrorTypes.NETWORK_ERROR){
-          informar("Error de transmisión ("+detalle+"). El servidor puede estar fuera de servicio, bloquear el acceso desde Shot TV o no permitir CORS. Revisa la URL del canal.");
-          // No reintentar indefinidamente: evita dejar el reproductor en carga eterna.
-          try{hls.stopLoad();}catch(e){}
+          informar("No se puede obtener la transmisión. Revisa si el enlace sigue activo o si el servidor permite conexiones desde Shot TV.");
+          try{hls.startLoad();}catch(e){}
         }else if(datos.type===window.Hls.ErrorTypes.MEDIA_ERROR){
-          informar("Error al decodificar el video ("+detalle+"). Intentando recuperar el reproductor…");
+          informar("La fuente respondió, pero el video no se pudo decodificar. Intentando recuperar el reproductor…");
           try{hls.recoverMediaError();}catch(e){
-            informar("No se pudo recuperar el video ("+detalle+"). La fuente puede usar un formato no compatible.");
+            informar("No se pudo recuperar el video. Puede haber un problema con la transmisión.");
           }
         }else{
-          informar("No se pudo cargar el canal. Error HLS: "+tipo+" / "+detalle+". Revisa si el enlace sigue activo.");
+          informar("No se pudo cargar el canal. Consulta la consola del navegador (F12) para ver el error HLS.");
           try{hls.destroy();}catch(e){}
           if(window.__shotTvHls===hls) window.__shotTvHls=null;
         }
@@ -1691,6 +1721,7 @@ $("guardarEdicion").onclick=guardarEdicion;
 $("guardarAd").onclick=guardarPublicidad;
 $("guardarNegocio").onclick=guardarNegocio;
 $("guardarCanal").onclick=guardarCanalEnVivo;
+$("cancelarEdicionCanal").onclick=cancelarEdicionCanal;
 $("buscarCanal").oninput=renderCanalesEnVivo;
 $("refrescarSolicitudes").onclick=cargarControlSolicitudes;
 $("cancelarNegocio").onclick=()=>{limpiarFormularioNegocio();mensaje("negocioAdminMsg","");};
