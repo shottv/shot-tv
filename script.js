@@ -1424,7 +1424,6 @@ function reproducirFuente(url){
   const video=$("player");
   const yt=$("youtubePlayer");
   const fuente=String(url||"").trim();
-  alert("URL del canal:\n" + fuente);
 
   if(!video || !yt || !fuente){
     console.error("Shot TV: falta el reproductor o la URL del canal.");
@@ -1432,11 +1431,10 @@ function reproducirFuente(url){
   }
 
   const youtubeId=detectarYouTube(fuente);
+  // Acepta .m3u8 directo y URLs que terminan en playlist.m3u8.
   const esHLS=/\.m3u8(?:$|[?#])/i.test(fuente) || /[?&]f=\.m3u8(?:&|$)/i.test(fuente);
-
   limpiarReproductores();
 
-  // YouTube
   if(youtubeId){
     yt.src=`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
     yt.classList.remove("hidden");
@@ -1444,7 +1442,6 @@ function reproducirFuente(url){
     return;
   }
 
-  // Mostrar el reproductor de video y ocultar el iframe.
   video.classList.remove("hidden");
   video.style.display="block";
   yt.classList.add("hidden");
@@ -1452,8 +1449,8 @@ function reproducirFuente(url){
   video.controls=true;
   video.autoplay=true;
   video.playsInline=true;
+  video.preload="auto";
 
-  // Mensaje de estado accesible, sin requerir cambios en index.html.
   let estado=$("shotTvEstadoReproductor");
   if(!estado){
     estado=document.createElement("div");
@@ -1466,32 +1463,60 @@ function reproducirFuente(url){
 
   video.onplaying=limpiarEstado;
   video.onwaiting=()=>informar("Cargando transmisión en vivo…");
-  video.onerror=()=>informar("No se pudo reproducir este canal. Verifica que el enlace esté activo y que el servidor permita la reproducción desde Shot TV.");
+  video.onerror=()=>{
+    const err=video.error;
+    console.error("Shot TV error de video:",err?{code:err.code,message:err.message}:"sin detalle");
+    informar("No se pudo reproducir la fuente. Puede estar inactiva o el servidor puede bloquear la reproducción desde Shot TV.");
+  };
 
   if(esHLS){
     informar("Conectando con el canal en vivo…");
 
-    // HLS.js para Chrome, Edge y otros navegadores compatibles.
     if(window.Hls && window.Hls.isSupported()){
-      const hls=new window.Hls({enableWorker:true,maxBufferLength:20});
+      const hls=new window.Hls({enableWorker:true,maxBufferLength:30,lowLatencyMode:false});
       window.__shotTvHls=hls;
+      hls.on(window.Hls.Events.ERROR,(evento,datos)=>{
+        if(!datos) return;
+        console.error("Shot TV HLS:",{
+          type:datos.type,
+          details:datos.details,
+          fatal:datos.fatal,
+          response:datos.response||null,
+          url:datos.url||fuente
+        });
+        if(!datos.fatal) return;
+        const detalle=String(datos.details||"error_desconocido");
+        const tipo=String(datos.type||"tipo_desconocido");
+        if(datos.type===window.Hls.ErrorTypes.NETWORK_ERROR){
+          informar("Error de transmisión ("+detalle+"). El servidor puede estar fuera de servicio, bloquear el acceso desde Shot TV o no permitir CORS. Revisa la URL del canal.");
+          // No reintentar indefinidamente: evita dejar el reproductor en carga eterna.
+          try{hls.stopLoad();}catch(e){}
+        }else if(datos.type===window.Hls.ErrorTypes.MEDIA_ERROR){
+          informar("Error al decodificar el video ("+detalle+"). Intentando recuperar el reproductor…");
+          try{hls.recoverMediaError();}catch(e){
+            informar("No se pudo recuperar el video ("+detalle+"). La fuente puede usar un formato no compatible.");
+          }
+        }else{
+          informar("No se pudo cargar el canal. Error HLS: "+tipo+" / "+detalle+". Revisa si el enlace sigue activo.");
+          try{hls.destroy();}catch(e){}
+          if(window.__shotTvHls===hls) window.__shotTvHls=null;
+        }
+      });
       hls.on(window.Hls.Events.MEDIA_ATTACHED,()=>hls.loadSource(fuente));
       hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{
-        video.play().catch(()=>informar("Canal cargado. Pulsa ▶ para iniciar la reproducción."));
+        video.play().catch(()=>informar("Canal cargado. Pulsa ▶ en el reproductor para iniciar la reproducción."));
       });
-      hls.on(window.Hls.Events.ERROR,(evento,datos)=>{
-        if(!datos || !datos.fatal) return;
-        console.error("Error HLS:",datos.type,datos.details);
-        informar("No se pudo cargar el canal. Puede estar inactivo o bloquear las conexiones desde Shot TV. Revisa la consola (F12). ");
-        hls.destroy();
-        if(window.__shotTvHls===hls) window.__shotTvHls=null;
+      hls.on(window.Hls.Events.LEVEL_LOADED,()=>{
+        // La lista HLS se recibió; se quitará el mensaje cuando empiece el video.
+        console.info("Shot TV: lista HLS recibida.");
       });
+      hls.attachMedia(video);
       return;
     }
 
-    // HLS nativo, habitual en Safari.
     if(video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")){
       video.src=fuente;
+      video.load();
       video.play().catch(()=>informar("Pulsa ▶ para iniciar el canal."));
       return;
     }
@@ -1500,8 +1525,8 @@ function reproducirFuente(url){
     return;
   }
 
-  // Enlaces directos, por ejemplo MP4 o WebM.
   video.src=fuente;
+  video.load();
   video.play().catch(()=>informar("Pulsa ▶ para iniciar la reproducción."));
 }
 
