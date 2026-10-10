@@ -12,7 +12,7 @@
   gtag('js', new Date());
   gtag('config', 'G-7S4QH58LL6');
 </script>
-<link rel="stylesheet" href="style.css?v=20261009-live3">
+<link rel="stylesheet" href="style.css?v=20261010-live-controls">
 <style>.cast-btn{position:absolute;right:106px;top:10px;background:#334155;color:#fff;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:16px;z-index:3}.cast-btn:hover{background:#475569}</style>
 </head>
 <body>
@@ -152,7 +152,7 @@
           <label class="full">O URL del logo (opcional)<input id="canalLogo" type="url" placeholder="https://servidor/logo.png"></label>
           <label class="ad-check"><span>Canal activo</span><input id="canalActivo" type="checkbox" checked></label>
           <button id="guardarCanal" type="button">📺 GUARDAR EN EN VIVO</button>
-          <button id="cancelarEdicionCanal" type="button" hidden style="background:#475569">Cancelar edición</button>
+          <button id="cancelarEdicionCanal" type="button" class="cancel-edit-channel" onclick="cancelarEdicionCanal()" hidden>Cancelar edición</button>
         </div>
         <div id="canalAdminMsg" class="mensaje"></div>
         <div id="canalesAdminLista" class="live-admin-list"></div>
@@ -306,6 +306,6 @@
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-    <script src="script.js?v=20261010-ts1"></script>
+    <script src="script.js?v=20261010-ts-layout-fix"></script>
 </body>
 </html>
