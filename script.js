@@ -1143,6 +1143,18 @@ function reproducirCanalEnVivo(id){
     alert("Esta sección está configurada para enlaces directos de canales (HLS/M3U8 o MP4), no para enlaces de YouTube.");
     return;
   }
+  // Los canales MPEG-TS se abren en un reproductor independiente, sin cambiar el diseño del sitio.
+  const urlCanal=String(canal.url||"").trim();
+  const esTS=/\.ts(?:$|[?#])/i.test(urlCanal) || /[?&]f=\.ts(?:&|$)/i.test(urlCanal);
+  if(esTS){
+    const destino=new URL("player-ts.html",window.location.href);
+    destino.searchParams.set("url",urlCanal);
+    destino.searchParams.set("titulo",String(canal.nombre||"Canal en vivo"));
+    const ventana=window.open(destino.href,"_blank");
+    if(ventana){ventana.opener=null;}
+    else{alert("El navegador bloqueó la nueva pestaña. Permite las ventanas emergentes para Shot TV e intenta de nuevo.");}
+    return;
+  }
   $("ptitulo").textContent="📺 "+canal.nombre;
   $("modal").classList.add("open");
   reproducirFuente(canal.url);
