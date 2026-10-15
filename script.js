@@ -1722,9 +1722,102 @@ if(window.__shotTvCastAvailable){
   window.inicializarShotTvCast();
 }
 
+// --- Suscripciones Shot TV ---
+const SHOTTV_CLIP_URL = "https://pago.clip.mx/v3/d6de6147-2740-493a-9995-13da93615d2a";
+
+async function obtenerSuscripcionActiva(){
+  if(!usuario) return false;
+
+  // El administrador conserva el acceso sin suscripción.
+  try{
+    const {data:esAdmin,error:errorAdmin}=await db.rpc("is_admin");
+    if(!errorAdmin && esAdmin===true) return true;
+  }catch(error){
+    console.warn("No se pudo comprobar el rol administrativo:",error);
+  }
+
+  const {data,error}=await db
+    .from("shottv_suscripciones")
+    .select("estado, fecha_vencimiento")
+    .eq("user_id",usuario.id)
+    .eq("estado","activa")
+    .gt("fecha_vencimiento",new Date().toISOString())
+    .limit(1);
+
+  if(error){
+    console.error("Error al consultar la suscripción:",error);
+    return null;
+  }
+  return Array.isArray(data) && data.length>0;
+}
+
+function mostrarAvisoSuscripcion(){
+  let aviso=$("avisoSuscripcion");
+  if(!aviso){
+    aviso=document.createElement("div");
+    aviso.id="avisoSuscripcion";
+    aviso.style.cssText="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.88);overflow:auto;";
+    aviso.innerHTML=`
+      <div style="box-sizing:border-box;width:100%;max-width:430px;max-height:95vh;overflow:auto;padding:26px;border-radius:16px;background:#171717;color:#fff;text-align:center;font-family:Arial,sans-serif;">
+        <button id="cerrarAvisoSuscripcion" type="button" aria-label="Cerrar" style="float:right;background:none;color:#fff;border:0;font-size:22px;cursor:pointer;">✕</button>
+        <h2>¡Desbloquea todo Shot TV!</h2>
+        <p>Disfruta de tus películas favoritas, sin interrupciones y sin anuncios.</p>
+        <h2>$50 MXN al mes</h2>
+        <p id="estadoAvisoSuscripcion" role="status">Inicia sesión o crea una cuenta para continuar.</p>
+        <input id="correoSuscripcion" type="email" placeholder="Tu correo electrónico" autocomplete="email" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
+        <input id="claveSuscripcion" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="current-password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
+        <button id="entrarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:10px;border:0;border-radius:8px;cursor:pointer;">Iniciar sesión</button>
+        <button id="crearCuentaSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;border:0;border-radius:8px;cursor:pointer;">Crear cuenta</button>
+        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora — Pagar con Clip</button>
+        <p style="font-size:12px;color:#bbb;">Después del pago, la suscripción debe ser confirmada para habilitar el acceso.</p>
+      </div>`;
+    document.body.appendChild(aviso);
+
+    $("cerrarAvisoSuscripcion").onclick=()=>aviso.remove();
+    $("entrarSuscripcion").onclick=async()=>{
+      const email=$("correoSuscripcion").value.trim();
+      const password=$("claveSuscripcion").value;
+      const estado=$("estadoAvisoSuscripcion");
+      if(!email||!password){estado.textContent="Escribe tu correo y contraseña.";return;}
+      const boton=$("entrarSuscripcion");
+      boton.disabled=true; estado.textContent="Iniciando sesión...";
+      const {error}=await db.auth.signInWithPassword({email,password});
+      boton.disabled=false;
+      if(error){estado.textContent="No se pudo iniciar sesión. Revisa tus datos y confirma tu correo si es necesario.";return;}
+      estado.textContent="Sesión iniciada. Verificando acceso...";
+      const acceso=await obtenerSuscripcionActiva();
+      if(acceso===true){aviso.remove();estado.textContent="Suscripción activa. Vuelve a seleccionar la película.";}
+      else if(acceso===false){estado.textContent="Tu cuenta inició sesión, pero aún no tiene una suscripción activa. Si ya pagaste, espera la confirmación del administrador.";}
+      else{estado.textContent="No pudimos verificar tu suscripción. Inténtalo nuevamente.";}
+    };
+    $("crearCuentaSuscripcion").onclick=async()=>{
+      const email=$("correoSuscripcion").value.trim();
+      const password=$("claveSuscripcion").value;
+      const estado=$("estadoAvisoSuscripcion");
+      if(!email||password.length<6){estado.textContent="Escribe tu correo y una contraseña de al menos 6 caracteres.";return;}
+      const boton=$("crearCuentaSuscripcion");
+      boton.disabled=true;estado.textContent="Creando tu cuenta...";
+      const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://shottv.github.io/shot-tv/"}});
+      boton.disabled=false;
+      estado.textContent=error?"No se pudo crear la cuenta. "+error.message:"Cuenta creada. Revisa tu correo para confirmar el registro y después inicia sesión.";
+    };
+    $("pagarSuscripcion").onclick=()=>window.open(SHOTTV_CLIP_URL,"_blank","noopener,noreferrer");
+  }
+}
+
 async function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
+
+  const acceso=await obtenerSuscripcionActiva();
+  if(acceso===null){
+    alert("No pudimos verificar tu suscripción. Inténtalo nuevamente.");
+    return;
+  }
+  if(!acceso){
+    mostrarAvisoSuscripcion();
+    return;
+  }
 
   const {error}=await db.rpc("incrementar_vista",{
     p_pelicula_id:Number(m.id)
