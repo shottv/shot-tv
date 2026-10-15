@@ -1883,7 +1883,12 @@ function mostrarAvisoSuscripcion(){
         estado.textContent="¡Suscripción activa! Ya puedes disfrutar de Shot TV.";
         setTimeout(()=>{ if(aviso.isConnected) aviso.remove(); },1200);
       } else if (resultadoConciliacion && resultadoConciliacion.checkout_status) {
-        estado.textContent="Clip todavía no confirma el pago. Estado: " + resultadoConciliacion.checkout_status + ". No vuelvas a pagar; intenta comprobarlo más tarde.";
+        const estadoCheckout = String(resultadoConciliacion.checkout_status).toUpperCase();
+        if (estadoCheckout === "CHECKOUT_CREATED" || estadoCheckout === "CHECKOUT_PENDING") {
+          estado.textContent="Tu pago aún no se ha completado. Si todavía no has pagado, selecciona «Suscríbete ahora» para abrir el pago seguro de Clip. Si ya pagaste, espera la confirmación antes de volver a intentarlo.";
+        } else {
+          estado.textContent="Clip aún está procesando la confirmación del pago. Si ya pagaste, no vuelvas a pagar; espera y vuelve a iniciar sesión para comprobar el acceso.";
+        }
       } else if (resultadoConciliacion && resultadoConciliacion.error) {
         const detalleError = String(resultadoConciliacion.error || "");
         if (detalleError.toLowerCase().includes("no hay un pago mensual") || detalleError.toLowerCase().includes("no hay un pago") || detalleError.toLowerCase().includes("pending")) {
