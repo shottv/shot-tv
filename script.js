@@ -1768,7 +1768,7 @@ function mostrarAvisoSuscripcion(){
         <input id="claveSuscripcion" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="current-password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
         <button id="entrarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:10px;border:0;border-radius:8px;cursor:pointer;">Iniciar sesión</button>
         <button id="crearCuentaSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;border:0;border-radius:8px;cursor:pointer;">Crear cuenta</button>
-        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora — Pagar con Clip</button>
+        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora</button>
         <p style="font-size:12px;color:#bbb;">Después del pago, la suscripción debe ser confirmada para habilitar el acceso.</p>
       </div>`;
     document.body.appendChild(aviso);
