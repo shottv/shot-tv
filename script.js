@@ -7,7 +7,7 @@ const $ = id => document.getElementById(id);
 let peliculas = [];
 let usuario = null;
 let esAdmin = false;
-let comprobandoPermisos = false;
+let comprobandoAdmin = false;
 let peliculaEditando = null;
 let canalesEnVivo = [];
 let canalEditandoId = null;
@@ -60,42 +60,29 @@ function render(){
     </article>`).join("");
 }
 
-async function actualizarPermisos(){
-  esAdmin = false;
-  if(!usuario){
-    mostrarAdmin();
-    return false;
-  }
-  comprobandoPermisos = true;
+async function actualizarPermisosAdmin(){
+  esAdmin=false;
+  if(!usuario){ comprobandoAdmin=false; mostrarAdmin(); return false; }
+  comprobandoAdmin=true;
   try{
     const {data,error}=await db.rpc("is_admin");
-    esAdmin = !error && data === true;
-    if(error) console.error("No se pudo verificar el rol administrativo:",error);
-  }catch(error){
-    console.error("Error verificando permisos administrativos:",error);
-    esAdmin = false;
-  }
-  comprobandoPermisos = false;
+    esAdmin=!error && data===true;
+  }catch(e){ console.warn("No se pudo comprobar el rol administrativo",e); esAdmin=false; }
+  comprobandoAdmin=false;
   mostrarAdmin();
   return esAdmin;
 }
 
 function mostrarAdmin(){
-  const loginBox = $("loginBox");
-  const adminPanel = $("adminPanel");
-  const adminSection = $("admin");
+  const loginBox=$("loginBox"), adminPanel=$("adminPanel"), adminSection=$("admin");
+  if(!loginBox||!adminPanel||!adminSection)return;
   if(esAdmin){
-    loginBox.hidden = true;
-    loginBox.classList.add("hidden");
-    adminPanel.hidden = false;
-    adminPanel.classList.remove("hidden");
+    loginBox.hidden=true; loginBox.classList.add("hidden");
+    adminPanel.hidden=false; adminPanel.classList.remove("hidden");
   }else{
-    loginBox.hidden = false;
-    loginBox.classList.remove("hidden");
-    adminPanel.hidden = true;
-    adminPanel.classList.add("hidden");
-    // Un usuario normal nunca debe quedarse dentro de la sección administrativa.
-    if(adminSection) adminSection.classList.add("hidden");
+    loginBox.hidden=false; loginBox.classList.remove("hidden");
+    adminPanel.hidden=true; adminPanel.classList.add("hidden");
+    adminSection.classList.add("hidden");
   }
   render();
   if(esAdmin){ cargarPublicidadAdmin(); cargarNegociosAdmin(); cargarControlSolicitudes(); cargarCanalesAdmin(); }
@@ -177,7 +164,7 @@ async function cargarControlSolicitudes(){
 }
 
 async function actualizarEstadoSolicitud(id,estado){
-  if(!esAdmin)return;
+  if(!usuario)return;
   const msg=$("solicitudesAdminMsg");
   const {error}=await db.from("solicitudes_negocios").update({estado}).eq("id",id);
   if(error){
@@ -190,28 +177,18 @@ async function actualizarEstadoSolicitud(id,estado){
   await cargarControlSolicitudes();
 }
 
-async function abrirAdministracion(e){
+function abrirAdministracion(e){
   if(e) e.preventDefault();
   const adminSection=$("admin");
-  if(!usuario){
-    adminSection.classList.remove("hidden");
-    mostrarAdmin();
-    history.replaceState(null,"",location.pathname+location.search);
-    adminSection.scrollIntoView({behavior:"smooth",block:"start"});
-    setTimeout(()=>$("loginEmail").focus(),250);
-    return;
-  }
-  const autorizado=await actualizarPermisos();
-  if(!autorizado){
-    alert("Esta cuenta no tiene permisos de administrador.");
-    $("admin").classList.add("hidden");
-    $("catalogo").classList.remove("hidden");
-    return;
-  }
   adminSection.classList.remove("hidden");
   mostrarAdmin();
+  // No dejamos #admin en la URL: así al recargar o cerrar sesión el cliente
+  // siempre vuelve al inicio público y nunca aterriza en el panel de acceso.
   history.replaceState(null,"",location.pathname+location.search);
   adminSection.scrollIntoView({behavior:"smooth",block:"start"});
+  setTimeout(()=>{
+    if(!esAdmin) $("loginEmail").focus();
+  },250);
 }
 
 async function iniciarSesion(){
@@ -231,14 +208,12 @@ async function iniciarSesion(){
   }
   usuario=data.user;
   $("loginPassword").value="";
-  const autorizado=await actualizarPermisos();
-  if(!autorizado){
-    mensaje("loginMsg","Sesión iniciada, pero esta cuenta no es administradora. Puedes cerrar este panel y usar el catálogo.");
-    $("admin").classList.add("hidden");
-    $("catalogo").classList.remove("hidden");
+  await actualizarPermisosAdmin();
+  if(!esAdmin){
+    mensaje("loginMsg","Sesión iniciada. Esta cuenta es de cliente; el panel administrativo está reservado al administrador.",true);
     return;
   }
-  mensaje("loginMsg","");
+  mensaje("loginMsg","Sesión administrativa iniciada.");
   abrirAdministracion();
 }
 
@@ -270,7 +245,7 @@ async function agregarPelicula(){
     return;
   }
   if(!esAdmin){
-    mensaje("adminMsg","Solo la cuenta administradora puede agregar películas.",true);
+    mensaje("adminMsg","Debes iniciar sesión.",true);
     return;
   }
   const titulo=$("titulo").value.trim();
@@ -350,7 +325,7 @@ async function agregarPelicula(){
 }
 
 async function moverPelicula(id, direccion){
-  if(!esAdmin){alert("Solo el administrador puede cambiar el orden.");return;}
+  if(!esAdmin){alert("Debes iniciar sesión para cambiar el orden.");return;}
 
   const scrollY=window.scrollY;
   const scrollX=window.scrollX;
@@ -475,7 +450,7 @@ function editar(id){
 }
 
 async function guardarEdicion(){
-  if(!esAdmin||!peliculaEditando)return;
+  if(!usuario||!peliculaEditando)return;
   const titulo=$("editTitulo").value.trim();
   const anio=Number($("editAnio").value)||null;
   const genero=$("editGenero").value.trim()||"Sin género";
@@ -567,7 +542,7 @@ function nombreArchivoAd(nombre){
 }
 
 async function guardarPublicidad(){
-  if(!esAdmin){mensaje("adAdminMsg","Solo el administrador puede realizar esta acción.",true);return;}
+  if(!esAdmin){mensaje("adAdminMsg","Debes iniciar sesión.",true);return;}
   const file=$("adFile").files[0], enlace=$("adLink").value.trim(), activo=$("adActivo").checked;
   if(!file){mensaje("adAdminMsg","Selecciona una imagen para el banner.",true);return;}
   if(!file.type.startsWith("image/")){mensaje("adAdminMsg","El banner debe ser una imagen.",true);return;}
@@ -589,7 +564,8 @@ async function guardarPublicidad(){
 }
 
 async function eliminarPublicidad(ad){
-  if(!esAdmin || !confirm("¿Eliminar la publicidad actual?"))return;
+  if(!esAdmin){alert("Acceso reservado al administrador de Shot TV.");return;}
+  if(!usuario || !confirm("¿Eliminar la publicidad actual?"))return;
   const {error}=await db.from("ads").delete().eq("id",ad.id);
   if(error){alert("No se pudo eliminar la publicidad: "+error.message);return;}
   try{
@@ -772,7 +748,7 @@ async function cargarNegociosAdmin(){
 }
 
 async function moverNegocio(id, direccion){
-  if(!esAdmin)return;
+  if(!usuario)return;
   const {data,error}=await db.from("negocios")
     .select("id,nombre,created_at,destacado")
     .order("destacado",{ascending:false})
@@ -841,7 +817,7 @@ function renderGaleriaAdmin(fotos){
 }
 
 function editarNegocio(id){
-  if(!esAdmin)return;
+  if(!usuario)return;
   db.from("negocios").select("*").eq("id",id).single().then(async ({data,error})=>{
     if(error){mensaje("negocioAdminMsg","No se pudo abrir el negocio: "+error.message,true);return;}
     negocioEditando=data;
@@ -914,7 +890,7 @@ async function subirFotosGaleria(negocioId,files){
 }
 
 async function guardarNegocio(){
-  if(!esAdmin){mensaje("negocioAdminMsg","Solo el administrador puede realizar esta acción.",true);return;}
+  if(!usuario){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
 
   const nombre=$("negNombre").value.trim();
   const categoria=$("negCategoria").value.trim();
@@ -1040,7 +1016,7 @@ async function guardarNegocio(){
 }
 
 async function eliminarFotoNegocio(id){
-  if(!esAdmin)return;
+  if(!usuario)return;
   const {data,error}=await db.from("negocio_fotos").select("id,url,negocio_id").eq("id",id).single();
   if(error){alert("No se pudo consultar la foto: "+error.message);return;}
   if(!confirm("¿Eliminar esta foto de la galería?"))return;
@@ -1147,7 +1123,7 @@ function renderCanalesEnVivo(){
     <img class="poster live-poster" src="${esc(c.logo||"")}" alt="Logo ${esc(c.nombre)}" loading="lazy" onerror="this.style.display='none'">
     <div class="info live-card-info"><h3>${esc(c.nombre)}</h3><div class="meta">${esc(c.categoria||"General")} · En vivo</div></div>
     <button type="button" class="live-play" onclick="event.stopPropagation();reproducirCanalEnVivo(${Number(c.id)})">▶ VER CANAL</button>
-    ${esAdmin?`<div class="card-actions live-card-actions" onclick="event.stopPropagation();">
+    ${usuario?`<div class="card-actions live-card-actions" onclick="event.stopPropagation();">
       <button class="move move-first" type="button" onclick="moverCanalEnVivo(${Number(c.id)}, -2)" title="Enviar al principio">⏫ Inicio</button>
       <button class="move move-up" type="button" onclick="moverCanalEnVivo(${Number(c.id)}, -1)" title="Subir una posición">⬆️ Subir</button>
       <button class="move move-down" type="button" onclick="moverCanalEnVivo(${Number(c.id)}, 1)" title="Bajar una posición">⬇️ Bajar</button>
@@ -1175,9 +1151,12 @@ async function moverCanalEnVivo(id, movimiento){
   await cargarCanalesEnVivo();await cargarCanalesAdmin();
 }
 
-function reproducirCanalEnVivo(id){
+async function reproducirCanalEnVivo(id){
   const canal=canalesEnVivo.find(c=>Number(c.id)===Number(id));
   if(!canal)return;
+  const acceso=await obtenerSuscripcionActiva();
+  if(acceso===null){alert("No pudimos verificar tu suscripción. Inténtalo de nuevo.");return;}
+  if(!acceso){mostrarAvisoSuscripcion();return;}
   if(detectarYouTube(canal.url)){
     alert("Esta sección está configurada para enlaces directos de canales (HLS/M3U8 o MP4), no para enlaces de YouTube.");
     return;
@@ -1246,7 +1225,7 @@ function cancelarEdicionCanal(){
 }
 
 async function guardarCanalEnVivo(){
-  if(!esAdmin){mensaje("canalAdminMsg","Esta acción requiere permisos de administrador.",true);return;}
+  if(!esAdmin){mensaje("canalAdminMsg","Inicia sesión como administrador.",true);return;}
   const nombre=$("canalNombre").value.trim();
   const categoria=$("canalCategoria").value.trim()||"General";
   const url=$("canalUrl").value.trim();
@@ -1800,15 +1779,15 @@ function mostrarAvisoSuscripcion(){
       <div style="box-sizing:border-box;width:100%;max-width:430px;max-height:95vh;overflow:auto;padding:26px;border-radius:16px;background:#171717;color:#fff;text-align:center;font-family:Arial,sans-serif;">
         <button id="cerrarAvisoSuscripcion" type="button" aria-label="Cerrar" style="float:right;background:none;color:#fff;border:0;font-size:22px;cursor:pointer;">✕</button>
         <h2>¡Desbloquea todo Shot TV!</h2>
-        <p>Disfruta de tus películas favoritas, sin interrupciones y sin anuncios.</p>
+        <p>Disfruta de películas y canales en vivo con una sola suscripción.</p>
         <h2>$50 MXN al mes</h2>
-        <p id="estadoAvisoSuscripcion" role="status">Inicia sesión o crea una cuenta para continuar.</p>
+        <p id="estadoAvisoSuscripcion" role="status">1. Crea tu cuenta. 2. Confirma tu correo desde el mensaje que te enviaremos. 3. Regresa aquí e inicia sesión. 4. Después podrás continuar al pago.</p>
         <input id="correoSuscripcion" type="email" placeholder="Tu correo electrónico" autocomplete="email" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
         <input id="claveSuscripcion" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="current-password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
         <button id="entrarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:10px;border:0;border-radius:8px;cursor:pointer;">Iniciar sesión</button>
         <button id="crearCuentaSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;border:0;border-radius:8px;cursor:pointer;">Crear cuenta</button>
-        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora — Pagar con Clip</button>
-        <p style="font-size:12px;color:#bbb;">Después del pago, la suscripción debe ser confirmada para habilitar el acceso.</p>
+        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora</button>
+        <p style="font-size:12px;color:#bbb;">Después del pago, espera la confirmación para habilitar películas y canales en vivo. Si no recibes el correo de confirmación, revisa spam o inténtalo más tarde.</p>
       </div>`;
     document.body.appendChild(aviso);
 
@@ -1836,23 +1815,28 @@ function mostrarAvisoSuscripcion(){
       if(!email||password.length<6){estado.textContent="Escribe tu correo y una contraseña de al menos 6 caracteres.";return;}
       const boton=$("crearCuentaSuscripcion");
       boton.disabled=true;estado.textContent="Creando tu cuenta...";
-      try{
-        const {data,error}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://shottv.github.io/shot-tv/"}});
-        if(error){
-          estado.textContent="No se pudo crear la cuenta: "+error.message;
-        }else if(data?.user && !data.session){
-          estado.textContent="¡Registro recibido! Te enviamos un correo para confirmar tu dirección. Al confirmar, vuelve a Shot TV e inicia sesión; la confirmación no activa una suscripción ni permisos administrativos.";
-        }else{
-          estado.textContent="Cuenta creada. Ya puedes iniciar sesión; para ver películas necesitas una suscripción activa.";
-        }
-      }catch(error){
-        console.error("Error al crear cuenta:",error);
-        estado.textContent="Ocurrió un error al crear la cuenta. Inténtalo nuevamente.";
-      }finally{
-        boton.disabled=false;
+      const {data,error}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://shottv.github.io/shot-tv/"}});
+      boton.disabled=false;
+      if(error){
+        const em=String(error.message||"").toLowerCase();
+        if(em.includes("rate limit")||em.includes("email rate limit")) estado.textContent="Supabase limitó temporalmente el envío de correos. No vuelvas a crear cuentas ahora; espera un tiempo e inténtalo de nuevo, o inicia sesión si ya confirmaste tu correo.";
+        else if(em.includes("already registered")||em.includes("already exists")) estado.textContent="Ese correo ya tiene una cuenta. Pulsa Iniciar sesión; si aún no confirmaste el correo, revisa tu bandeja de entrada y spam.";
+        else estado.textContent="No se pudo crear la cuenta. Revisa los datos e inténtalo más tarde.";
+        return;
       }
+      estado.textContent="Cuenta creada. Paso 1 de 3: abre el correo de confirmación de Shot TV (revisa spam si no lo ves). Paso 2: pulsa el enlace. Paso 3: vuelve a esta página e inicia sesión; después podrás suscribirte.";
     };
-    $("pagarSuscripcion").onclick=()=>window.open(SHOTTV_CLIP_URL,"_blank","noopener,noreferrer");
+    $("pagarSuscripcion").onclick=async()=>{
+      const estado=$("estadoAvisoSuscripcion");
+      const {data:{session}}=await db.auth.getSession();
+      usuario=session?.user||null;
+      if(!usuario){estado.textContent="Antes de pagar, crea tu cuenta, confirma el correo y después inicia sesión.";return;}
+      const acceso=await obtenerSuscripcionActiva();
+      if(acceso===true){estado.textContent="Tu suscripción ya está activa. No necesitas pagar otra vez.";return;}
+      if(acceso===null){estado.textContent="No pudimos verificar tu cuenta. Inténtalo de nuevo.";return;}
+      window.open(SHOTTV_CLIP_URL,"_blank","noopener,noreferrer");
+      estado.textContent="Se abrió la página de pago. Después de pagar, conserva tu comprobante; el administrador debe confirmar el pago para activar tu acceso.";
+    };
   }
 }
 
@@ -1963,15 +1947,13 @@ document.addEventListener("keydown",e=>{
 
 db.auth.getSession().then(async({data})=>{
   usuario=data.session?.user||null;
-  await actualizarPermisos();
+  await actualizarPermisosAdmin();
   cargarPeliculas();
 });
 
-db.auth.onAuthStateChange((_event,session)=>{
+db.auth.onAuthStateChange(async(_event,session)=>{
   usuario=session?.user||null;
-  esAdmin=false;
-  // Supabase auth callbacks must not await another Supabase call inside callback.
-  setTimeout(()=>actualizarPermisos(),0);
+  await actualizarPermisosAdmin();
 });
 
 // Al abrir o recargar Shot TV siempre mostramos el inicio público.
