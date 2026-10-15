@@ -1983,6 +1983,26 @@ document.addEventListener("keydown",e=>{
 
 db.auth.getSession().then(async ({data})=>{
   usuario=data.session?.user||null;
+
+  // Al volver de Clip, intenta conciliar el checkout mensual pendiente.
+  // Esta llamada consulta el pago existente y NO crea un nuevo cobro.
+  if(usuario){
+    try{
+      const {data:resultadoPago,error:errorPago}=await db.functions.invoke("conciliar-pago",{
+        body:{}
+      });
+      if(errorPago){
+        console.warn("No se pudo comprobar automáticamente el pago de Clip:",errorPago);
+      }else if(resultadoPago?.ok){
+        console.info("Shot TV: pago mensual confirmado y suscripción actualizada.");
+      }else if(resultadoPago?.checkout_status){
+        console.info("Shot TV: Clip todavía no confirma el pago:",resultadoPago.checkout_status);
+      }
+    }catch(errorPago){
+      console.warn("No se pudo consultar el pago al regresar a Shot TV:",errorPago);
+    }
+  }
+
   await verificarRolAdministrador();
   mostrarAdmin();
   cargarPeliculas();
