@@ -1800,11 +1800,35 @@ function mostrarAvisoSuscripcion(){
       const {error}=await db.auth.signInWithPassword({email,password});
       boton.disabled=false;
       if(error){estado.textContent="No se pudo iniciar sesión. Revisa tus datos y confirma tu correo si es necesario.";return;}
-      estado.textContent="Sesión iniciada. Verificando acceso...";
+      estado.textContent="Sesión iniciada. Comprobando el pago existente de Clip...";
+      let resultadoConciliacion = null;
+      try {
+        // Consulta el pago de prueba ya registrado. Esta llamada NO crea un cobro nuevo.
+        const { data, error: errorConciliacion } = await db.functions.invoke("conciliar-pago", {
+          body: {}
+        });
+        if (errorConciliacion) {
+          console.warn("No se pudo conciliar el pago existente:", errorConciliacion);
+        } else {
+          resultadoConciliacion = data;
+        }
+      } catch (errorConciliacion) {
+        console.warn("Error consultando el pago existente:", errorConciliacion);
+      }
+
       const acceso=await obtenerSuscripcionActiva();
-      if(acceso===true){aviso.remove();estado.textContent="Suscripción activa. Vuelve a seleccionar la película.";}
-      else if(acceso===false){estado.textContent="Tu cuenta inició sesión, pero aún no tiene una suscripción activa. Si ya pagaste, espera la confirmación del administrador.";}
-      else{estado.textContent="No pudimos verificar tu suscripción. Inténtalo nuevamente.";}
+      if(acceso===true){
+        estado.textContent="¡Suscripción activa! Ya puedes disfrutar de Shot TV.";
+        setTimeout(()=>{ if(aviso.isConnected) aviso.remove(); },1200);
+      } else if (resultadoConciliacion && resultadoConciliacion.checkout_status) {
+        estado.textContent="Clip todavía no confirma el pago. Estado: " + resultadoConciliacion.checkout_status + ". No vuelvas a pagar; intenta comprobarlo más tarde.";
+      } else if (resultadoConciliacion && resultadoConciliacion.error) {
+        estado.textContent="No se pudo verificar el pago: " + resultadoConciliacion.error + ". No realices otro pago.";
+      } else if(acceso===false){
+        estado.textContent="La sesión está iniciada, pero Clip todavía no confirma un pago completado para esta cuenta. No vuelvas a pagar; vuelve a intentarlo cuando Clip actualice el estado.";
+      } else {
+        estado.textContent="No pudimos verificar la suscripción. Inténtalo nuevamente más tarde.";
+      }
     };
     $("crearCuentaSuscripcion").onclick=async()=>{
       const email=$("correoSuscripcion").value.trim();
