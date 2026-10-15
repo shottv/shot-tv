@@ -1901,7 +1901,7 @@ function mostrarAvisoSuscripcion(){
       boton.disabled=true;estado.textContent="Creando tu cuenta...";
       const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://shottv.github.io/shot-tv/"}});
       boton.disabled=false;
-      estado.textContent=error?"No se pudo crear la cuenta. "+error.message:"Cuenta creada. Revisa tu correo para confirmar el registro y después inicia sesión.";
+      estado.textContent=error?"No se pudo crear la cuenta. "+error.message:"Cuenta creada. Ahora inicia sesión y selecciona la opción Suscríbete ahora para desbloquear el acceso.";
     };
     $("pagarSuscripcion").onclick = async () => {
       const boton = $("pagarSuscripcion");
