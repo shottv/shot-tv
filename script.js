@@ -6,6 +6,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 const $ = id => document.getElementById(id);
 let peliculas = [];
 let usuario = null;
+let esAdmin = false;
 let peliculaEditando = null;
 let canalesEnVivo = [];
 let canalEditandoId = null;
@@ -16,6 +17,21 @@ let castInicializado = false;
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+
+async function verificarRolAdministrador(){
+  if(!usuario){
+    esAdmin = false;
+    return;
+  }
+  try{
+    const {data, error} = await db.rpc("is_admin");
+    esAdmin = !error && data === true;
+    if(error) console.warn("No se pudo verificar el rol administrativo:", error);
+  }catch(error){
+    esAdmin = false;
+    console.warn("Error verificando administrador:", error);
+  }
 }
 
 function mensaje(id, texto, error=false){
@@ -47,7 +63,7 @@ function render(){
         <h3>${esc(m.titulo)}</h3>
         <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
       </div>
-      ${usuario?`<div class="card-actions" onclick="event.stopPropagation();">
+      ${esAdmin?`<div class="card-actions" onclick="event.stopPropagation();">
         <button class="move move-first" type="button" onclick="moverPelicula(${Number(m.id)}, -2)" title="Enviar al principio">⏫ Inicio</button>
         <button class="move move-up" type="button" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir una posición">⬆️ Subir</button>
         <button class="move move-down" type="button" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar una posición">⬇️ Bajar</button>
@@ -64,7 +80,7 @@ function mostrarAdmin(){
   const adminSection = $("admin");
 
   // Mostrar SOLO una de las dos vistas: login o panel de administrador.
-  if(usuario){
+  if(esAdmin){
     loginBox.hidden = true;
     loginBox.classList.add("hidden");
     adminPanel.hidden = false;
@@ -76,7 +92,7 @@ function mostrarAdmin(){
     adminPanel.classList.add("hidden");
   }
   render();
-  if(usuario){ cargarPublicidadAdmin(); cargarNegociosAdmin(); cargarControlSolicitudes(); cargarCanalesAdmin(); }
+  if(esAdmin){ cargarPublicidadAdmin(); cargarNegociosAdmin(); cargarControlSolicitudes(); cargarCanalesAdmin(); }
 }
 
 function escSolicitud(v){
@@ -94,7 +110,7 @@ function etiquetaEstado(estado){
 }
 
 async function cargarControlSolicitudes(){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const msg=$("solicitudesAdminMsg");
   try{
     const [solRes,negRes]=await Promise.all([
@@ -155,7 +171,7 @@ async function cargarControlSolicitudes(){
 }
 
 async function actualizarEstadoSolicitud(id,estado){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const msg=$("solicitudesAdminMsg");
   const {error}=await db.from("solicitudes_negocios").update({estado}).eq("id",id);
   if(error){
@@ -230,7 +246,7 @@ async function agregarPelicula(){
     mensaje("adminMsg","Tienes datos en el formulario de En vivo. Pulsa 📺 GUARDAR EN EN VIVO dentro de ese apartado; no uses AGREGAR PELÍCULA.",true);
     return;
   }
-  if(!usuario){
+  if(!usuario || !esAdmin){
     mensaje("adminMsg","Debes iniciar sesión.",true);
     return;
   }
@@ -311,7 +327,7 @@ async function agregarPelicula(){
 }
 
 async function moverPelicula(id, direccion){
-  if(!usuario){alert("Debes iniciar sesión para cambiar el orden.");return;}
+  if(!usuario || !esAdmin){alert("Debes iniciar sesión para cambiar el orden.");return;}
 
   const scrollY=window.scrollY;
   const scrollX=window.scrollX;
@@ -389,7 +405,7 @@ async function moverPelicula(id, direccion){
 }
 
 async function eliminar(id){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const pelicula=peliculas.find(m=>Number(m.id)===Number(id));
   if(!pelicula)return;
   if(!confirm(`¿Eliminar "${pelicula.titulo}"?`))return;
@@ -422,7 +438,7 @@ function cerrarEdicion(){
 }
 
 function editar(id){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
   peliculaEditando=m;
@@ -512,7 +528,7 @@ async function cargarPublicidad(){
 }
 
 async function cargarPublicidadAdmin(){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const {data,error}=await db.from("ads").select("id,imagen,enlace,activo,created_at").order("created_at",{ascending:false}).limit(1);
   const box=$("adActual");
   if(error){ box.textContent="No se pudo consultar la publicidad."; return; }
@@ -528,7 +544,7 @@ function nombreArchivoAd(nombre){
 }
 
 async function guardarPublicidad(){
-  if(!usuario){mensaje("adAdminMsg","Debes iniciar sesión.",true);return;}
+  if(!usuario || !esAdmin){mensaje("adAdminMsg","Debes iniciar sesión.",true);return;}
   const file=$("adFile").files[0], enlace=$("adLink").value.trim(), activo=$("adActivo").checked;
   if(!file){mensaje("adAdminMsg","Selecciona una imagen para el banner.",true);return;}
   if(!file.type.startsWith("image/")){mensaje("adAdminMsg","El banner debe ser una imagen.",true);return;}
@@ -693,7 +709,7 @@ function limpiarFormularioNegocio(){
 }
 
 async function cargarNegociosAdmin(){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const {data,error}=await db.from("negocios")
     .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
     .order("created_at",{ascending:false});
@@ -733,7 +749,7 @@ async function cargarNegociosAdmin(){
 }
 
 async function moverNegocio(id, direccion){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const {data,error}=await db.from("negocios")
     .select("id,nombre,created_at,destacado")
     .order("destacado",{ascending:false})
@@ -802,7 +818,7 @@ function renderGaleriaAdmin(fotos){
 }
 
 function editarNegocio(id){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   db.from("negocios").select("*").eq("id",id).single().then(async ({data,error})=>{
     if(error){mensaje("negocioAdminMsg","No se pudo abrir el negocio: "+error.message,true);return;}
     negocioEditando=data;
@@ -875,7 +891,7 @@ async function subirFotosGaleria(negocioId,files){
 }
 
 async function guardarNegocio(){
-  if(!usuario){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
+  if(!usuario || !esAdmin){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
 
   const nombre=$("negNombre").value.trim();
   const categoria=$("negCategoria").value.trim();
@@ -1001,7 +1017,7 @@ async function guardarNegocio(){
 }
 
 async function eliminarFotoNegocio(id){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const {data,error}=await db.from("negocio_fotos").select("id,url,negocio_id").eq("id",id).single();
   if(error){alert("No se pudo consultar la foto: "+error.message);return;}
   if(!confirm("¿Eliminar esta foto de la galería?"))return;
@@ -1025,7 +1041,7 @@ async function eliminarFotoNegocio(id){
 }
 
 async function eliminarNegocio(id){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const {data,error:readError}=await db.from("negocios").select("id,nombre,imagen").eq("id",id).single();
   if(readError){alert("No se pudo consultar el negocio: "+readError.message);return;}
   if(!confirm(`¿Eliminar "${data.nombre}"?`))return;
@@ -1120,7 +1136,7 @@ function renderCanalesEnVivo(){
 }
 
 async function moverCanalEnVivo(id, movimiento){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const {data,error}=await db.from("canales_en_vivo").select("id,orden,nombre").order("orden",{ascending:true,nullsFirst:false}).order("nombre",{ascending:true});
   if(error){alert("No se pudo ordenar los canales. Verifica que ejecutaste el archivo SQL incluido. Detalle: "+error.message);return;}
   const filas=data||[];
@@ -1161,7 +1177,7 @@ function reproducirCanalEnVivo(id){
 }
 
 async function cargarCanalesAdmin(){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const cont=$("canalesAdminLista");
   if(!cont)return;
   const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,url,logo,activo,orden").order("orden",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false});
@@ -1174,7 +1190,7 @@ async function cargarCanalesAdmin(){
 }
 
 async function editarCanalEnVivo(id){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   let canal=canalesEnVivo.find(c=>Number(c.id)===Number(id));
   if(!canal){
     const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,url,logo,activo,orden").eq("id",id).maybeSingle();
@@ -1207,7 +1223,7 @@ function cancelarEdicionCanal(){
 }
 
 async function guardarCanalEnVivo(){
-  if(!usuario){mensaje("canalAdminMsg","Inicia sesión como administrador.",true);return;}
+  if(!usuario || !esAdmin){mensaje("canalAdminMsg","Inicia sesión como administrador.",true);return;}
   const nombre=$("canalNombre").value.trim();
   const categoria=$("canalCategoria").value.trim()||"General";
   const url=$("canalUrl").value.trim();
@@ -1270,7 +1286,7 @@ async function guardarCanalEnVivo(){
   }
 }
 async function eliminarCanalEnVivo(id){
-  if(!usuario)return;
+  if(!usuario || !esAdmin)return;
   const canalConfirm=(await db.from("canales_en_vivo").select("nombre").eq("id",id).maybeSingle());
   if(canalConfirm.error){alert("No se pudo consultar el canal: "+canalConfirm.error.message);return;}
   if(!confirm(`¿Eliminar el canal "${canalConfirm.data?.nombre||""}"?`))return;
@@ -1768,7 +1784,7 @@ function mostrarAvisoSuscripcion(){
         <input id="claveSuscripcion" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="current-password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
         <button id="entrarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:10px;border:0;border-radius:8px;cursor:pointer;">Iniciar sesión</button>
         <button id="crearCuentaSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;border:0;border-radius:8px;cursor:pointer;">Crear cuenta</button>
-        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora — Pagar con Clip</button>
+        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora</button>
         <p style="font-size:12px;color:#bbb;">Después del pago, la suscripción debe ser confirmada para habilitar el acceso.</p>
       </div>`;
     document.body.appendChild(aviso);
@@ -1804,11 +1820,10 @@ function mostrarAvisoSuscripcion(){
     $("pagarSuscripcion").onclick = async () => {
       const boton = $("pagarSuscripcion");
       const estado = $("estadoAvisoSuscripcion");
-
       const { data: { session }, error: sessionError } = await db.auth.getSession();
 
       if (sessionError || !session) {
-        estado.textContent = "Inicia sesión o crea tu cuenta antes de pagar.";
+        estado.textContent = "Inicia sesión o crea una cuenta antes de suscribirte.";
         return;
       }
 
@@ -1942,15 +1957,22 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Enter"&&document.activeElement===$("loginPassword"))iniciarSesion();
 });
 
-db.auth.getSession().then(({data})=>{
+db.auth.getSession().then(async ({data})=>{
   usuario=data.session?.user||null;
+  await verificarRolAdministrador();
   mostrarAdmin();
   cargarPeliculas();
 });
 
 db.auth.onAuthStateChange((_event,session)=>{
   usuario=session?.user||null;
+  esAdmin=false;
   mostrarAdmin();
+  // Verify the role after the auth callback completes.
+  setTimeout(async ()=>{
+    await verificarRolAdministrador();
+    mostrarAdmin();
+  },0);
 });
 
 // Al abrir o recargar Shot TV siempre mostramos el inicio público.
