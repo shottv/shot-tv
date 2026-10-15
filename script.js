@@ -34,6 +34,68 @@ async function verificarRolAdministrador(){
   }
 }
 
+// Menú de cuenta para clientes: muestra el correo, estado de suscripción y permite cerrar sesión.
+function instalarMenuCuenta(){
+  if(document.getElementById("shotTvCuentaBtn")) return;
+  const estilo=document.createElement("style");
+  estilo.id="shotTvCuentaEstilos";
+  estilo.textContent=`
+    #shotTvCuentaWrap{position:relative;display:inline-flex;align-items:center;margin-left:10px;z-index:1000;font-family:inherit}
+    #shotTvCuentaBtn{background:#10283a;color:#fff;border:1px solid #28465c;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600;white-space:nowrap}
+    #shotTvCuentaPanel{position:absolute;right:0;top:calc(100% + 9px);width:min(310px,calc(100vw - 28px));background:#071725;color:#fff;border:1px solid #29465a;border-radius:12px;padding:16px;box-shadow:0 12px 32px #0009;display:none}
+    #shotTvCuentaPanel.abierto{display:block}
+    #shotTvCuentaPanel .cuenta-label{color:#9bb5c8;font-size:12px;margin:10px 0 3px}
+    #shotTvCuentaPanel .cuenta-valor{overflow-wrap:anywhere;font-size:14px}
+    #shotTvCuentaEstado{margin-top:10px;padding:9px;border-radius:8px;background:#10283a;font-size:13px;line-height:1.4}
+    #shotTvCerrarSesion{width:100%;margin-top:14px;padding:10px;border:0;border-radius:8px;background:#c83d4d;color:white;font-weight:700;cursor:pointer}
+    @media(max-width:700px){#shotTvCuentaWrap{margin-left:4px}#shotTvCuentaBtn{padding:8px;font-size:12px}#shotTvCuentaPanel{right:0}}
+  `;
+  document.head.appendChild(estilo);
+  const wrap=document.createElement('div'); wrap.id='shotTvCuentaWrap';
+  wrap.innerHTML=`<button id="shotTvCuentaBtn" type="button" aria-expanded="false">👤 Mi cuenta ▾</button>
+    <div id="shotTvCuentaPanel" role="dialog" aria-label="Mi cuenta">
+      <strong>Mi cuenta Shot TV</strong>
+      <div class="cuenta-label">Correo electrónico</div><div class="cuenta-valor" id="shotTvCuentaCorreo">—</div>
+      <div class="cuenta-label">Estado de suscripción</div><div id="shotTvCuentaEstado">Consultando…</div>
+      <button id="shotTvCerrarSesion" type="button">Cerrar sesión</button>
+    </div>`;
+  const nav=document.querySelector('header nav') || document.querySelector('header') || document.querySelector('nav');
+  if(nav) nav.appendChild(wrap); else document.body.appendChild(wrap);
+  const btn=document.getElementById('shotTvCuentaBtn'), panel=document.getElementById('shotTvCuentaPanel');
+  btn.addEventListener('click',async()=>{
+    const abierto=panel.classList.toggle('abierto'); btn.setAttribute('aria-expanded',String(abierto));
+    if(abierto) await actualizarPanelCuenta();
+  });
+  document.addEventListener('click',e=>{if(!wrap.contains(e.target)){panel.classList.remove('abierto');btn.setAttribute('aria-expanded','false')}});
+  document.getElementById('shotTvCerrarSesion').addEventListener('click',async()=>{
+    const b=document.getElementById('shotTvCerrarSesion'); b.disabled=true; b.textContent='Cerrando sesión…';
+    await cerrarSesion(); panel.classList.remove('abierto'); b.disabled=false; b.textContent='Cerrar sesión'; actualizarVisibilidadCuenta();
+  });
+  actualizarVisibilidadCuenta();
+}
+function actualizarVisibilidadCuenta(){
+  const wrap=document.getElementById('shotTvCuentaWrap'); if(!wrap) return;
+  wrap.style.display=usuario?'inline-flex':'none';
+  const correo=document.getElementById('shotTvCuentaCorreo'); if(correo) correo.textContent=usuario?.email||'—';
+}
+async function actualizarPanelCuenta(){
+  const correo=document.getElementById('shotTvCuentaCorreo');
+  const estado=document.getElementById('shotTvCuentaEstado');
+  correo.textContent=usuario?.email||'—';
+  if(!usuario){estado.textContent='No has iniciado sesión.';return;}
+  estado.textContent='Consultando suscripción…';
+  try{
+    const {data,error}=await db.from('shottv_suscripciones').select('estado,fecha_vencimiento')
+      .eq('user_id',usuario.id).eq('estado','activa').gt('fecha_vencimiento',new Date().toISOString())
+      .order('fecha_vencimiento',{ascending:false}).limit(1);
+    if(error) throw error;
+    if(data?.length){
+      const vence=new Date(data[0].fecha_vencimiento).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+      estado.textContent=`Activa · Vence el ${vence}`;
+    }else estado.textContent='Sin suscripción activa. Suscríbete para acceder al contenido.';
+  }catch(e){console.warn('No se pudo consultar el estado de la cuenta:',e);estado.textContent='No se pudo consultar la suscripción en este momento.';}
+}
+
 function mensaje(id, texto, error=false){
   const el=$(id);
   el.textContent=texto||"";
@@ -1971,6 +2033,7 @@ $("cerrar").onclick=cerrar;
 $("modal").onclick=e=>{if(e.target===$("modal"))cerrar()};
 $("cerrarFotoNegocio").onclick=cerrarFotoNegocio;
 $("businessPhotoModal").onclick=e=>{if(e.target===$("businessPhotoModal"))cerrarFotoNegocio()};
+instalarMenuCuenta();
 cargarPublicidad();
 cargarNegocios();
 document.addEventListener("keydown",e=>{
@@ -1983,6 +2046,8 @@ document.addEventListener("keydown",e=>{
 
 db.auth.getSession().then(async ({data})=>{
   usuario=data.session?.user||null;
+  instalarMenuCuenta();
+  actualizarVisibilidadCuenta();
 
   // Al volver de Clip, intenta conciliar el checkout mensual pendiente.
   // Esta llamada consulta el pago existente y NO crea un nuevo cobro.
@@ -2010,6 +2075,7 @@ db.auth.getSession().then(async ({data})=>{
 
 db.auth.onAuthStateChange((_event,session)=>{
   usuario=session?.user||null;
+  actualizarVisibilidadCuenta();
   esAdmin=false;
   mostrarAdmin();
   // Verify the role after the auth callback completes.
