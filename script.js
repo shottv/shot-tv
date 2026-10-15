@@ -1885,7 +1885,7 @@ function mostrarAvisoSuscripcion(){
       } else if (resultadoConciliacion && resultadoConciliacion.checkout_status) {
         const estadoCheckout = String(resultadoConciliacion.checkout_status).toUpperCase();
         if (estadoCheckout === "CHECKOUT_CREATED" || estadoCheckout === "CHECKOUT_PENDING") {
-          estado.textContent="Tu pago aún no se ha completado. Si todavía no has pagado, selecciona «Suscríbete ahora» para abrir el pago seguro de Clip. Si ya pagaste, espera la confirmación antes de volver a intentarlo.";
+          estado.textContent="Tu pago aún no aparece como completado. Si todavía no has pagado, selecciona «Suscríbete ahora» para abrir el pago seguro de Clip. Si ya pagaste, vuelve a iniciar sesión o comprueba tu suscripción. Cuando Clip confirme el pago, Shot TV habilitará tu acceso automáticamente. No necesitas enviar comprobantes ni esperar una confirmación manual.";
         } else {
           estado.textContent="Clip aún está procesando la confirmación del pago. Si ya pagaste, no vuelvas a pagar; espera y vuelve a iniciar sesión para comprobar el acceso.";
         }
