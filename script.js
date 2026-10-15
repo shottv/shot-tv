@@ -1834,14 +1834,14 @@ function mostrarAvisoSuscripcion(){
   if(!aviso){
     aviso=document.createElement("div");
     aviso.id="avisoSuscripcion";
-    aviso.style.cssText="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.88);overflow:auto;";
+    aviso.style.cssText="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:10px;background:rgba(0,0,0,.88);overflow:hidden;box-sizing:border-box;";
     aviso.innerHTML=`
-      <div style="box-sizing:border-box;width:100%;max-width:430px;max-height:95vh;overflow:auto;padding:26px;border-radius:16px;background:#171717;color:#fff;text-align:center;font-family:Arial,sans-serif;">
+      <div style="box-sizing:border-box;width:100%;max-width:430px;max-height:calc(100dvh - 20px);overflow-y:auto;overflow-x:hidden;padding:18px;border-radius:16px;background:#171717;color:#fff;text-align:center;font-family:Arial,sans-serif;">
         <button id="cerrarAvisoSuscripcion" type="button" aria-label="Cerrar" style="float:right;background:none;color:#fff;border:0;font-size:22px;cursor:pointer;">✕</button>
-        <h2>¡Desbloquea todo Shot TV!</h2>
-        <p>Disfruta de tus películas favoritas, sin interrupciones y sin anuncios.</p>
-        <h2>$50 MXN al mes</h2>
-        <p id="estadoAvisoSuscripcion" role="status">Inicia sesión o crea una cuenta para continuar.</p>
+        <h2 style="margin:4px 0 10px;">¡Desbloquea todo Shot TV!</h2>
+        <p style="margin:8px 0 12px;">Disfruta de tus películas favoritas, sin interrupciones y sin anuncios.</p>
+        <h2 style="margin:10px 0 12px;">$50 MXN al mes</h2>
+        <p id="estadoAvisoSuscripcion" role="status" style="margin:10px 0;padding:0 2px;overflow-wrap:anywhere;">Inicia sesión o crea una cuenta para continuar.</p>
         <input id="correoSuscripcion" type="email" placeholder="Tu correo electrónico" autocomplete="email" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
         <input id="claveSuscripcion" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="current-password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
         <button id="entrarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:10px;border:0;border-radius:8px;cursor:pointer;">Iniciar sesión</button>
@@ -1885,9 +1885,15 @@ function mostrarAvisoSuscripcion(){
       } else if (resultadoConciliacion && resultadoConciliacion.checkout_status) {
         estado.textContent="Clip todavía no confirma el pago. Estado: " + resultadoConciliacion.checkout_status + ". No vuelvas a pagar; intenta comprobarlo más tarde.";
       } else if (resultadoConciliacion && resultadoConciliacion.error) {
-        estado.textContent="No se pudo verificar el pago: " + resultadoConciliacion.error + ". No realices otro pago.";
+        const detalleError = String(resultadoConciliacion.error || "");
+        if (detalleError.toLowerCase().includes("no hay un pago mensual") || detalleError.toLowerCase().includes("no hay un pago") || detalleError.toLowerCase().includes("pending")) {
+          estado.textContent="Tu cuenta todavía no tiene un pago registrado. Selecciona «Suscríbete ahora» para continuar con el pago de $50 MXN al mes.";
+        } else {
+          estado.textContent="No pudimos comprobar el pago. Puedes intentarlo más tarde; si ya pagaste, no vuelvas a pagar.";
+          console.warn("Detalle de conciliación:", detalleError);
+        }
       } else if(acceso===false){
-        estado.textContent="La sesión está iniciada, pero Clip todavía no confirma un pago completado para esta cuenta. No vuelvas a pagar; vuelve a intentarlo cuando Clip actualice el estado.";
+        estado.textContent="Sesión iniciada. Para desbloquear Shot TV, selecciona «Suscríbete ahora» y continúa al pago seguro de Clip.";
       } else {
         estado.textContent="No pudimos verificar la suscripción. Inténtalo nuevamente más tarde.";
       }
@@ -1923,7 +1929,7 @@ function mostrarAvisoSuscripcion(){
 
         if (error || !data || !data.payment_url) {
           console.error("Error al generar pago:", error, data);
-          estado.textContent = data?.error || "No se pudo generar el pago. Inténtalo de nuevo.";
+          estado.textContent = data?.error || "No pudimos preparar el pago. Inténtalo de nuevo más tarde.";
           boton.disabled = false;
           return;
         }
