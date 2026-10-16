@@ -1840,7 +1840,7 @@ function mostrarAvisoSuscripcion(){
         <button id="cerrarAvisoSuscripcion" type="button" aria-label="Cerrar" style="float:right;background:none;color:#fff;border:0;font-size:22px;cursor:pointer;">✕</button>
         <h2 style="margin:4px 0 10px;">¡Desbloquea todo Shot TV!</h2>
         <p style="margin:8px 0 12px;">Disfruta de tus películas favoritas, sin interrupciones y sin anuncios.</p>
-        <h2 style="margin:10px 0 12px;">$50 MXN al mes</h2>
+        <h2 style="margin:10px 0 12px;">$2 MXN al mes</h2>
         <p id="estadoAvisoSuscripcion" role="status" style="margin:10px 0;padding:0 2px;overflow-wrap:anywhere;">Inicia sesión o crea una cuenta para continuar.</p>
         <input id="correoSuscripcion" type="email" placeholder="Tu correo electrónico" autocomplete="email" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
         <input id="claveSuscripcion" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="current-password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
