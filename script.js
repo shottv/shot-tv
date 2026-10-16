@@ -1866,7 +1866,7 @@ function mostrarAvisoSuscripcion(){
       let resultadoConciliacion = null;
       try {
         // Consulta el pago de prueba ya registrado. Esta llamada NO crea un cobro nuevo.
-        const { data, error: errorConciliacion } = await db.functions.invoke("conciliar-pago", {
+        const { data, error: errorConciliacion } = await db.functions.invoke("conciliar-pago-prueba", {
           body: {}
         });
         if (errorConciliacion) {
