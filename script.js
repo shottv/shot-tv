@@ -1866,7 +1866,7 @@ function mostrarAvisoSuscripcion(){
       let resultadoConciliacion = null;
       try {
         // Consulta el pago de prueba ya registrado. Esta llamada NO crea un cobro nuevo.
-        const { data, error: errorConciliacion } = await db.functions.invoke("conciliar-pago-prueba", {
+        const { data, error: errorConciliacion } = await db.functions.invoke("conciliar-pago", {
           body: {}
         });
         if (errorConciliacion) {
@@ -1928,7 +1928,7 @@ function mostrarAvisoSuscripcion(){
       estado.textContent = "Generando tu enlace de pago seguro...";
 
       try {
-        const { data, error } = await db.functions.invoke("clip-pagos-prueba", {
+        const { data, error } = await db.functions.invoke("clip-pagos", {
           body: {},
         });
 
