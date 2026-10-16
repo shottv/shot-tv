@@ -1928,7 +1928,7 @@ function mostrarAvisoSuscripcion(){
       estado.textContent = "Generando tu enlace de pago seguro...";
 
       try {
-        const { data, error } = await db.functions.invoke("clip-pagos", {
+        const { data, error } = await db.functions.invoke("clip-pagos-prueba", {
           body: {},
         });
 
