@@ -1892,7 +1892,7 @@ function mostrarAvisoSuscripcion(){
       } else if (resultadoConciliacion && resultadoConciliacion.error) {
         const detalleError = String(resultadoConciliacion.error || "");
         if (detalleError.toLowerCase().includes("no hay un pago mensual") || detalleError.toLowerCase().includes("no hay un pago") || detalleError.toLowerCase().includes("pending")) {
-          estado.textContent="Tu cuenta todavía no tiene un pago registrado. Selecciona «Suscríbete ahora» para continuar con el pago de $50 MXN al mes.";
+          estado.textContent="Tu cuenta todavía no tiene un pago registrado. Selecciona «Suscríbete ahora» para continuar con el pago de $2 MXN al mes.";
         } else {
           estado.textContent="No pudimos comprobar el pago. Puedes intentarlo más tarde; si ya pagaste, no vuelvas a pagar.";
           console.warn("Detalle de conciliación:", detalleError);
