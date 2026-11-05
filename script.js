@@ -42,13 +42,17 @@ function instalarMenuCuenta(){
   estilo.textContent=`
     #shotTvCuentaWrap{position:relative;display:inline-flex;align-items:center;margin-left:10px;z-index:1000;font-family:inherit}
     #shotTvCuentaBtn{background:#10283a;color:#fff;border:1px solid #28465c;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600;white-space:nowrap}
-    #shotTvCuentaPanel{position:absolute;right:0;top:calc(100% + 9px);width:min(310px,calc(100vw - 28px));background:#071725;color:#fff;border:1px solid #29465a;border-radius:12px;padding:16px;box-shadow:0 12px 32px #0009;display:none}
+    #shotTvCuentaPanel{position:absolute;right:0;top:calc(100% + 9px);width:min(360px,calc(100vw - 28px));background:#071725;color:#fff;border:1px solid #29465a;border-radius:12px;padding:16px;box-shadow:0 12px 32px #0009;display:none;box-sizing:border-box}
     #shotTvCuentaPanel.abierto{display:block}
     #shotTvCuentaPanel .cuenta-label{color:#9bb5c8;font-size:12px;margin:10px 0 3px}
     #shotTvCuentaPanel .cuenta-valor{overflow-wrap:anywhere;font-size:14px}
-    #shotTvCuentaEstado{margin-top:10px;padding:9px;border-radius:8px;background:#10283a;font-size:13px;line-height:1.4}
+    #shotTvCuentaEstado{margin-top:8px;padding:10px;border-radius:8px;background:#10283a;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
     #shotTvCerrarSesion{width:100%;margin-top:14px;padding:10px;border:0;border-radius:8px;background:#c83d4d;color:white;font-weight:700;cursor:pointer}
-    @media(max-width:700px){#shotTvCuentaWrap{margin-left:4px}#shotTvCuentaBtn{padding:8px;font-size:12px}#shotTvCuentaPanel{right:0}}
+    @media(max-width:700px){
+      #shotTvCuentaWrap{margin-left:4px}
+      #shotTvCuentaBtn{padding:8px;font-size:12px}
+      #shotTvCuentaPanel{position:fixed;top:150px;left:14px;right:14px;width:auto;max-height:calc(100dvh - 170px);overflow-y:auto;z-index:99999}
+    }
   `;
   document.head.appendChild(estilo);
   const wrap=document.createElement('div'); wrap.id='shotTvCuentaWrap';
@@ -91,8 +95,10 @@ async function actualizarPanelCuenta(){
     if(error) throw error;
     if(data?.length){
       const vence=new Date(data[0].fecha_vencimiento).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
-      estado.textContent=`Activa · Vence el ${vence}`;
-    }else estado.textContent='Sin suscripción activa. Suscríbete para acceder al contenido.';
+      estado.innerHTML=`<strong>🟢 Suscripción activa</strong><br><span>📅 Vence el ${vence}</span>`;
+    }else{
+      estado.innerHTML='<strong>🔴 Sin suscripción activa</strong><br><span>Suscríbete para acceder al contenido.</span>';
+    }
   }catch(e){console.warn('No se pudo consultar el estado de la cuenta:',e);estado.textContent='No se pudo consultar la suscripción en este momento.';}
 }
 
