@@ -42,17 +42,13 @@ function instalarMenuCuenta(){
   estilo.textContent=`
     #shotTvCuentaWrap{position:relative;display:inline-flex;align-items:center;margin-left:10px;z-index:1000;font-family:inherit}
     #shotTvCuentaBtn{background:#10283a;color:#fff;border:1px solid #28465c;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600;white-space:nowrap}
-    #shotTvCuentaPanel{position:absolute;right:0;top:calc(100% + 9px);width:min(360px,calc(100vw - 28px));background:#071725;color:#fff;border:1px solid #29465a;border-radius:12px;padding:16px;box-shadow:0 12px 32px #0009;display:none;box-sizing:border-box}
+    #shotTvCuentaPanel{position:absolute;right:0;top:calc(100% + 9px);width:min(310px,calc(100vw - 28px));background:#071725;color:#fff;border:1px solid #29465a;border-radius:12px;padding:16px;box-shadow:0 12px 32px #0009;display:none}
     #shotTvCuentaPanel.abierto{display:block}
     #shotTvCuentaPanel .cuenta-label{color:#9bb5c8;font-size:12px;margin:10px 0 3px}
     #shotTvCuentaPanel .cuenta-valor{overflow-wrap:anywhere;font-size:14px}
-    #shotTvCuentaEstado{margin-top:8px;padding:10px;border-radius:8px;background:#10283a;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+    #shotTvCuentaEstado{margin-top:10px;padding:9px;border-radius:8px;background:#10283a;font-size:13px;line-height:1.4}
     #shotTvCerrarSesion{width:100%;margin-top:14px;padding:10px;border:0;border-radius:8px;background:#c83d4d;color:white;font-weight:700;cursor:pointer}
-    @media(max-width:700px){
-      #shotTvCuentaWrap{margin-left:4px}
-      #shotTvCuentaBtn{padding:8px;font-size:12px}
-      #shotTvCuentaPanel{position:fixed;top:150px;left:14px;right:14px;width:auto;max-height:calc(100dvh - 170px);overflow-y:auto;z-index:99999}
-    }
+    @media(max-width:700px){#shotTvCuentaWrap{margin-left:4px}#shotTvCuentaBtn{padding:8px;font-size:12px}#shotTvCuentaPanel{right:0}}
   `;
   document.head.appendChild(estilo);
   const wrap=document.createElement('div'); wrap.id='shotTvCuentaWrap';
@@ -95,10 +91,8 @@ async function actualizarPanelCuenta(){
     if(error) throw error;
     if(data?.length){
       const vence=new Date(data[0].fecha_vencimiento).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
-      estado.innerHTML=`<strong>🟢 Suscripción activa</strong><br><span>📅 Vence el ${vence}</span>`;
-    }else{
-      estado.innerHTML='<strong>🔴 Sin suscripción activa</strong><br><span>Suscríbete para acceder al contenido.</span>';
-    }
+      estado.textContent=`Activa · Vence el ${vence}`;
+    }else estado.textContent='Sin suscripción activa. Suscríbete para acceder al contenido.';
   }catch(e){console.warn('No se pudo consultar el estado de la cuenta:',e);estado.textContent='No se pudo consultar la suscripción en este momento.';}
 }
 
@@ -110,7 +104,10 @@ function mensaje(id, texto, error=false){
 
 async function cargarPeliculas(){
   $("estado").textContent="Cargando catálogo...";
-  const {data,error}=await db.from("peliculas").select("id,created_at,titulo,año,genero,portada,url,orden").order("orden",{ascending:true,nullsFirst:false}).order("created_at",{ascending:true});
+  const {data,error}=await db.from("peliculas")
+    .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:true});
   if(error){
     console.error(error);
     $("estado").textContent="No se pudo cargar el catálogo.";
@@ -118,6 +115,37 @@ async function cargarPeliculas(){
   }
   peliculas=data||[];
   render();
+  await cargarNetflixVisto();
+}
+
+async function cargarNetflixVisto(){
+  const estado=$("netflixEstado");
+  const grid=$("netflixGrid");
+  if(!estado || !grid) return;
+
+  estado.textContent="Cargando películas...";
+  const {data,error}=await db.from("peliculas")
+    .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
+    .eq("destacada",true)
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:false});
+
+  if(error){
+    console.error(error);
+    estado.textContent="No se pudieron cargar las películas.";
+    return;
+  }
+
+  const lista=data||[];
+  estado.textContent=lista.length ? "" : "Aún no hay películas seleccionadas.";
+  grid.innerHTML=lista.map(m=>`
+    <article class="card" onclick="abrir(${Number(m.id)})">
+      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
+      <div class="info">
+        <h3>${esc(m.titulo)}</h3>
+        <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
+      </div>
+    </article>`).join("");
 }
 
 function render(){
@@ -145,6 +173,11 @@ function render(){
 function mostrarAdmin(){
   const loginBox = $("loginBox");
   const adminPanel = $("adminPanel");
+  $("catalogo")?.classList.add("hidden");
+  $("netflix")?.classList.add("hidden");
+  $("negocios")?.classList.add("hidden");
+  $("enVivo")?.classList.add("hidden");
+  $("buscar")?.classList.add("hidden");
   const adminSection = $("admin");
 
   // Mostrar SOLO una de las dos vistas: login o panel de administrador.
@@ -356,6 +389,7 @@ async function agregarPelicula(){
   const portada=publicData.publicUrl;
 
   const ponerPrimero = $("ponerPrimero").checked;
+  const destacada = !!$("destacada")?.checked;
 
   // Si se coloca al principio, usamos un orden menor que el actual.
   // Así no tenemos que actualizar todas las películas existentes.
@@ -372,7 +406,8 @@ async function agregarPelicula(){
     genero,
     portada,
     url,
-    orden:nuevoOrden
+    orden:nuevoOrden,
+    destacada
   });
 
   if(error){
@@ -389,6 +424,7 @@ async function agregarPelicula(){
   $("portada").value="";
   $("url").value="";
   $("ponerPrimero").checked=true;
+  if($("destacada")) $("destacada").checked=false;
   btn.disabled=false;
   mensaje("adminMsg","Película agregada correctamente. 🎬");
   await cargarPeliculas();
@@ -514,6 +550,7 @@ function editar(id){
   $("editAnio").value=m.año||"";
   $("editGenero").value=m.genero||"";
   $("editUrl").value=m.url||"";
+  if($("editDestacada")) $("editDestacada").checked=!!m.destacada;
   $("editPortada").value="";
   mensaje("editMsg","");
   $("editModal").classList.add("open");
@@ -526,6 +563,7 @@ async function guardarEdicion(){
   const genero=$("editGenero").value.trim()||"Sin género";
   const url=$("editUrl").value.trim();
   const file=$("editPortada").files[0];
+  const destacada=!!$("editDestacada")?.checked;
   if(!titulo||!url){
     mensaje("editMsg","Completa título y Direct Link (streaming).",true);
     return;
@@ -557,7 +595,7 @@ async function guardarEdicion(){
     nuevaPortada=db.storage.from("posters").getPublicUrl(nuevoPath).data.publicUrl;
   }
 
-  const {error}=await db.from("peliculas").update({titulo,"año":anio,genero,url,portada:nuevaPortada}).eq("id",peliculaEditando.id);
+  const {error}=await db.from("peliculas").update({titulo,"año":anio,genero,url,portada:nuevaPortada,destacada}).eq("id",peliculaEditando.id);
   if(error){
     if(nuevoPath) await db.storage.from("posters").remove([nuevoPath]);
     console.error(error);
@@ -1144,6 +1182,7 @@ function abrirNegocios(e){
   if(e)e.preventDefault();
   $("admin").classList.add("hidden");
   $("catalogo").classList.add("hidden");
+  $("netflix")?.classList.add("hidden");
   $("enVivo").classList.add("hidden");
   $("buscar").classList.add("hidden");
   $("negocios").classList.remove("hidden");
@@ -1157,6 +1196,7 @@ function abrirEnVivo(e){
   $("admin").classList.add("hidden");
   $("catalogo").classList.add("hidden");
   $("negocios").classList.add("hidden");
+  $("netflix")?.classList.add("hidden");
   $("buscar").classList.add("hidden");
   $("enVivo").classList.remove("hidden");
   history.replaceState(null,"","#enVivo");
@@ -1534,10 +1574,23 @@ function abrirCatalogo(e){
   if(e)e.preventDefault();
   $("buscar").classList.remove("hidden");
   $("negocios").classList.add("hidden");
+  $("netflix")?.classList.add("hidden");
   $("enVivo").classList.add("hidden");
   $("admin").classList.add("hidden");
   $("catalogo").classList.remove("hidden");
   history.replaceState(null,"","#catalogo");
+}
+
+function abrirNetflix(e){
+  if(e)e.preventDefault();
+  $("buscar").classList.add("hidden");
+  $("catalogo").classList.add("hidden");
+  $("negocios").classList.add("hidden");
+  $("enVivo").classList.add("hidden");
+  $("admin").classList.add("hidden");
+  $("netflix")?.classList.remove("hidden");
+  history.replaceState(null,"","#netflix");
+  cargarNetflixVisto();
 }
 
 
@@ -2013,6 +2066,7 @@ $("buscar").oninput=render;
 $("buscarNegocio").oninput=renderNegocios;
 $("filtroCategoria").onchange=renderNegocios;
 $("catalogoLink").onclick=abrirCatalogo;
+if($("netflixLink")) $("netflixLink").onclick=abrirNetflix;
 $("negociosLink").onclick=abrirNegocios;
 $("enVivoLink").onclick=abrirEnVivo;
 $("adminLink").onclick=abrirAdministracion;

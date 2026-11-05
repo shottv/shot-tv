@@ -42,7 +42,7 @@
 
   <nav>
     <a href="#catalogo" id="catalogoLink">Catálogo</a>
-    <a href="#netflix" id="netflixLink">🆕 Netflix<br>➕ Más visto</a>
+    <a href="#netflix" id="netflixLink">🆕 Netflix<br>➕ Visto</a>
     <a href="#negocios" id="negociosLink">🏪 Negocios</a>
     <a href="#enVivo" id="enVivoLink">📺 En vivo</a>
     <a href="#admin" id="adminLink" class="admin-nav-hidden" aria-hidden="true" tabindex="-1">Administrar</a>
@@ -67,12 +67,10 @@
 
   <!-- LO NUEVO EN NETFLIX -->
   <section id="netflix" class="netflix-section hidden">
-    <h1>🆕 Lo nuevo en Netflix</h1>
-    <p class="subtexto">Descubre las películas y novedades más recientes.</p>
+    <h1>🆕 Netflix + Visto</h1>
+    <p class="subtexto">Películas seleccionadas y contenido más visto.</p>
 
-    <div id="netflixEstado" class="estado">
-      Próximamente encontrarás aquí las novedades de Netflix.
-    </div>
+    <div id="netflixEstado" class="estado">Cargando películas...</div>
 
     <div id="netflixGrid" class="grid"></div>
   </section>
@@ -423,6 +421,11 @@
           📌 Colocar esta película al principio del catálogo
         </label>
 
+        <label class="full add-first-option">
+          <input id="destacada" type="checkbox">
+          🆕 Mostrar también en Netflix + Visto
+        </label>
+
         <button id="agregar">AGREGAR PELÍCULA</button>
 
       </div>
@@ -727,6 +730,11 @@
       <label class="full">
         Portada nueva (opcional)
         <input id="editPortada" type="file" accept="image/*">
+      </label>
+
+      <label class="full add-first-option">
+        <input id="editDestacada" type="checkbox">
+        🆕 Mostrar también en Netflix + Visto
       </label>
 
       <button id="guardarEdicion">GUARDAR CAMBIOS</button>
