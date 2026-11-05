@@ -173,11 +173,6 @@ function render(){
 function mostrarAdmin(){
   const loginBox = $("loginBox");
   const adminPanel = $("adminPanel");
-  $("catalogo")?.classList.add("hidden");
-  $("netflix")?.classList.add("hidden");
-  $("negocios")?.classList.add("hidden");
-  $("enVivo")?.classList.add("hidden");
-  $("buscar")?.classList.add("hidden");
   const adminSection = $("admin");
 
   // Mostrar SOLO una de las dos vistas: login o panel de administrador.
