@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prueba gratis | Shot TV</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:#07111b;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.contenedor{width:100%;max-width:430px;text-align:center}
+.logo{font-size:32px;font-weight:800;letter-spacing:1px;margin-bottom:28px}.logo span{color:#e53945}
+.tarjeta{background:#0d1c29;border:1px solid #20394c;border-radius:18px;padding:30px 24px;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+.icono{font-size:42px}h1{font-size:25px;margin:10px 0}.descripcion,.nota{color:#b8c7d3;line-height:1.5}
+.descripcion{font-size:15px;margin-bottom:24px}label{display:block;text-align:left;font-size:13px;color:#b8c7d3;margin:14px 0 7px}
+input{width:100%;padding:14px;border-radius:10px;border:1px solid #29465a;background:#071725;color:#fff;font-size:15px;outline:none}input:focus{border-color:#e53945}
+button{width:100%;margin-top:22px;padding:15px;border:0;border-radius:10px;background:#e53945;color:#fff;font-size:15px;font-weight:800;cursor:pointer}button:disabled{opacity:.65;cursor:wait}
+.nota{font-size:13px;margin-top:20px}.mensaje{display:none;margin-top:18px;padding:13px;border-radius:10px;font-size:14px;line-height:1.45}
+.mensaje.error,.mensaje.exito{display:block}.mensaje.error{background:#3a1820;color:#ffd7db}.mensaje.exito{background:#123424;color:#d5ffe5}
+.login{margin-top:22px;color:#b8c7d3;font-size:14px}.login a,.volver{color:#fff;font-weight:bold;text-decoration:none}.volver{display:inline-block;margin-top:22px;color:#91a7b8;font-size:13px}
+.entrar{display:none;width:100%;margin-top:14px;padding:14px;border-radius:10px;background:#1b8f52;color:white;text-decoration:none;font-weight:bold}
+@media(max-width:480px){.tarjeta{padding:26px 18px}.logo{font-size:28px}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<main class="contenedor">
+<div class="logo">▶ SHOT <span>TV</span></div>
+<section class="tarjeta">
+<div class="icono">🎁</div>
+<h1>Prueba gratis por 24 horas</h1>
+<p class="descripcion">Crea tu acceso y disfruta de Shot TV durante 24 horas.</p>
+<form id="formPrueba">
+<label for="correo">📧 Correo electrónico</label>
+<input id="correo" type="email" placeholder="tu@correo.com" required autocomplete="email">
+<label for="password">🔒 Crea una contraseña</label>
+<input id="password" type="password" placeholder="Mínimo 6 caracteres" minlength="6" required autocomplete="new-password">
+<button type="submit" id="btnPrueba">🎬 ACTIVAR PRUEBA GRATIS</button>
+</form>
+<div id="mensaje" class="mensaje" role="status"></div>
+<a id="entrarShotTV" class="entrar" href="./">🚀 ENTRAR A SHOT TV</a>
+<p class="nota">⏱️ Tu acceso tendrá una duración de 24 horas.<br>La prueba gratuita es válida una sola vez por usuario.</p>
+<div class="login">¿Ya tienes una cuenta?<br><a href="./">INICIAR SESIÓN EN SHOT TV</a></div>
+</section>
+<a class="volver" href="./">← Volver a Shot TV</a>
+</main>
+
+<script>
+const SUPABASE_URL = "https://akpsjzcuimlwvehbammq.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+const form=document.getElementById("formPrueba");
+const mensaje=document.getElementById("mensaje");
+const boton=document.getElementById("btnPrueba");
+const entrar=document.getElementById("entrarShotTV");
+
+function mostrar(texto,tipo){
+  mensaje.className="mensaje "+tipo;
+  mensaje.textContent=texto;
+}
+
+form.addEventListener("submit",async(e)=>{
+  e.preventDefault();
+  const email=document.getElementById("correo").value.trim().toLowerCase();
+  const password=document.getElementById("password").value;
+
+  boton.disabled=true;
+  boton.textContent="ACTIVANDO PRUEBA...";
+  mensaje.className="mensaje";
+  entrar.style.display="none";
+
+  try{
+    const {data:registro,error:registroError}=await db.auth.signUp({email,password});
+
+    if(registroError) throw registroError;
+
+    let user=registro?.user;
+    let session=registro?.session;
+
+    // Si el correo ya existía, intentamos iniciar sesión.
+    if(!session){
+      const login=await db.auth.signInWithPassword({email,password});
+      if(login.error){
+        if(user && !registro.session){
+          throw new Error("Tu cuenta fue creada, pero debes confirmar tu correo antes de activar la prueba. Revisa tu correo electrónico.");
+        }
+        throw login.error;
+      }
+      user=login.data.user;
+      session=login.data.session;
+    }
+
+    if(!user || !session) throw new Error("No se pudo iniciar la sesión para activar la prueba.");
+
+    const {data,error}=await db.rpc("activar_prueba_gratis");
+    if(error) throw error;
+
+    const vencimiento=Array.isArray(data) && data[0]?.fecha_vencimiento
+      ? new Date(data[0].fecha_vencimiento).toLocaleString("es-MX",{dateStyle:"long",timeStyle:"short"})
+      : "dentro de 24 horas";
+
+    mostrar("🎉 ¡Tu prueba está activa! Tu acceso vence el "+vencimiento+".","exito");
+    form.style.display="none";
+    entrar.style.display="block";
+
+  }catch(error){
+    console.error(error);
+    let texto=error?.message || "No se pudo activar la prueba.";
+    if(/already registered|already been registered/i.test(texto)){
+      texto="Este correo ya tiene una cuenta. Inicia sesión desde Shot TV.";
+    }
+    if(/ya utilizó|prueba gratuita/i.test(texto)){
+      texto="Este usuario ya utilizó su prueba gratuita.";
+    }
+    mostrar("⚠️ "+texto,"error");
+  }finally{
+    boton.disabled=false;
+    boton.textContent="🎬 ACTIVAR PRUEBA GRATIS";
+  }
+});
+</script>
+</body>
+</html>
