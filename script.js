@@ -2138,16 +2138,22 @@ function mostrarAvisoSuscripcion(){
 }
 
 function mostrarPeliculasRelacionadas(peliculaActual){
-  const modal=$("modal");
-  if(!modal || !peliculaActual) return;
+  if(!peliculaActual) return;
 
   let cont=document.getElementById("peliculasRelacionadas");
+  const playerWrap=$("playerWrap");
+
   if(!cont){
     cont=document.createElement("section");
     cont.id="peliculasRelacionadas";
-    cont.style.cssText="max-width:900px;margin:16px auto 0;padding:14px;background:#071f2b;border-radius:10px;color:#fff;";
-    const destino=modal.querySelector(".modal-content") || modal.querySelector(".modal-box") || modal;
-    destino.appendChild(cont);
+    cont.style.cssText="margin:18px 0 0;padding:14px;background:#071f2b;border-radius:10px;color:#fff;width:100%;box-sizing:border-box;";
+
+    // Insertar las recomendaciones exactamente debajo del reproductor.
+    if(playerWrap && playerWrap.parentNode){
+      playerWrap.insertAdjacentElement("afterend",cont);
+    }else{
+      return;
+    }
   }
 
   const genero=String(peliculaActual.genero||"").trim().toLowerCase();
@@ -2157,7 +2163,6 @@ function mostrarPeliculasRelacionadas(peliculaActual){
     String(p.genero||"").toLowerCase()===genero
   );
 
-  // Si hay pocas coincidencias del mismo género, completar con otras películas.
   if(relacionadas.length<4){
     const usadas=new Set(relacionadas.map(p=>Number(p.id)));
     relacionadas=relacionadas.concat(
@@ -2172,10 +2177,17 @@ function mostrarPeliculasRelacionadas(peliculaActual){
     return;
   }
 
+  // Permitir desplazamiento dentro del reproductor para que las recomendaciones sean visibles.
+  const playerBox=$("modal")?.querySelector(".playerbox");
+  if(playerBox){
+    playerBox.style.maxHeight="90vh";
+    playerBox.style.overflowY="auto";
+  }
+
   cont.style.display="block";
   cont.innerHTML=`
     <h3 style="margin:0 0 12px;font-size:18px;">🎬 También te puede gustar</h3>
-    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:5px;">
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;">
       ${relacionadas.map(p=>`
         <button type="button" onclick="abrir(${Number(p.id)})" style="flex:0 0 105px;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer;padding:0;">
           <img src="${esc(p.portada)}" alt="${esc(p.titulo)}" style="width:105px;height:155px;object-fit:cover;border-radius:7px;display:block;">
@@ -2184,7 +2196,6 @@ function mostrarPeliculasRelacionadas(peliculaActual){
       `).join("")}
     </div>`;
 }
-
 async function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
@@ -2358,4 +2369,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }catch(e){
     console.error("No se pudo inicializar Mi lista:", e);
   }
+});
+
+
+// Simplificar el reproductor: ocultar los botones que no se están utilizando.
+document.addEventListener("DOMContentLoaded",()=>{
+  const cast=$("enviarPantalla");
+  const pantalla=$("pantalla");
+  if(cast) cast.style.display="none";
+  if(pantalla) pantalla.style.display="none";
 });
