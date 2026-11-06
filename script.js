@@ -2140,21 +2140,27 @@ function mostrarAvisoSuscripcion(){
 function mostrarPeliculasRelacionadas(peliculaActual){
   if(!peliculaActual) return;
 
-  let cont=document.getElementById("peliculasRelacionadas");
+  const modal=$("modal");
   const playerWrap=$("playerWrap");
+  if(!modal || !playerWrap) return;
 
+  // Buscar el contenedor real de la ventana del reproductor.
+  const caja=modal.querySelector(".playerbox") || playerWrap.parentElement;
+  if(!caja) return;
+
+  let cont=document.getElementById("peliculasRelacionadas");
   if(!cont){
     cont=document.createElement("section");
     cont.id="peliculasRelacionadas";
-    cont.style.cssText="margin:18px 0 0;padding:14px;background:#071f2b;border-radius:10px;color:#fff;width:100%;box-sizing:border-box;";
-
-    // Insertar las recomendaciones exactamente debajo del reproductor.
-    if(playerWrap && playerWrap.parentNode){
-      playerWrap.insertAdjacentElement("afterend",cont);
-    }else{
-      return;
-    }
   }
+
+  // IMPORTANTE: las recomendaciones deben estar dentro de la misma ventana modal,
+  // nunca como un elemento hermano del reproductor.
+  if(cont.parentElement!==caja){
+    caja.appendChild(cont);
+  }
+
+  cont.style.cssText="display:block;width:100%;box-sizing:border-box;margin:16px 0 0;padding:14px;background:#062d3a;border-radius:10px;color:#fff;";
 
   const genero=String(peliculaActual.genero||"").trim().toLowerCase();
   let relacionadas=peliculas.filter(p=>
@@ -2177,17 +2183,9 @@ function mostrarPeliculasRelacionadas(peliculaActual){
     return;
   }
 
-  // Permitir desplazamiento dentro del reproductor para que las recomendaciones sean visibles.
-  const playerBox=$("modal")?.querySelector(".playerbox");
-  if(playerBox){
-    playerBox.style.maxHeight="90vh";
-    playerBox.style.overflowY="auto";
-  }
-
-  cont.style.display="block";
   cont.innerHTML=`
     <h3 style="margin:0 0 12px;font-size:18px;">🎬 También te puede gustar</h3>
-    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;">
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;">
       ${relacionadas.map(p=>`
         <button type="button" onclick="abrir(${Number(p.id)})" style="flex:0 0 105px;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer;padding:0;">
           <img src="${esc(p.portada)}" alt="${esc(p.titulo)}" style="width:105px;height:155px;object-fit:cover;border-radius:7px;display:block;">
@@ -2375,8 +2373,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
-// Ajuste de diseño para películas relacionadas:
-// Mantiene el reproductor completo visible y permite desplazarse dentro de la ventana.
+
 document.addEventListener("DOMContentLoaded",()=>{
   const cast=$("enviarPantalla");
   const pantalla=$("pantalla");
@@ -2385,35 +2382,18 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   const estilo=document.createElement("style");
   estilo.textContent=`
-    #modal.open{
-      align-items:flex-start !important;
-      overflow-y:auto !important;
-      padding:12px !important;
-    }
-    #modal.open .playerbox{
-      margin:auto !important;
-      max-height:none !important;
-    }
-    #peliculasRelacionadas{
-      margin-top:14px !important;
-    }
+    #modal.open { overflow-y:auto !important; }
+    #peliculasRelacionadas { clear:both; }
     @media(max-width:760px){
-      #modal.open{
-        align-items:flex-start !important;
-        padding:8px !important;
-      }
+      #modal.open { padding:8px !important; align-items:flex-start !important; }
       #modal.open .playerbox{
         width:100% !important;
         max-width:100% !important;
-        margin:0 auto !important;
-        padding:14px !important;
+        margin:8px auto !important;
         box-sizing:border-box !important;
       }
-      #modal.open .playerbox video,
-      #modal.open .youtube-player{
-        min-height:0 !important;
-        height:auto !important;
-        aspect-ratio:16/9 !important;
+      #peliculasRelacionadas{
+        margin-top:14px !important;
       }
     }
   `;
