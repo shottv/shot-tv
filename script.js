@@ -2372,10 +2372,50 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 
-// Simplificar el reproductor: ocultar los botones que no se están utilizando.
+
+
+
+// Ajuste de diseño para películas relacionadas:
+// Mantiene el reproductor completo visible y permite desplazarse dentro de la ventana.
 document.addEventListener("DOMContentLoaded",()=>{
   const cast=$("enviarPantalla");
   const pantalla=$("pantalla");
   if(cast) cast.style.display="none";
   if(pantalla) pantalla.style.display="none";
+
+  const estilo=document.createElement("style");
+  estilo.textContent=`
+    #modal.open{
+      align-items:flex-start !important;
+      overflow-y:auto !important;
+      padding:12px !important;
+    }
+    #modal.open .playerbox{
+      margin:auto !important;
+      max-height:none !important;
+    }
+    #peliculasRelacionadas{
+      margin-top:14px !important;
+    }
+    @media(max-width:760px){
+      #modal.open{
+        align-items:flex-start !important;
+        padding:8px !important;
+      }
+      #modal.open .playerbox{
+        width:100% !important;
+        max-width:100% !important;
+        margin:0 auto !important;
+        padding:14px !important;
+        box-sizing:border-box !important;
+      }
+      #modal.open .playerbox video,
+      #modal.open .youtube-player{
+        min-height:0 !important;
+        height:auto !important;
+        aspect-ratio:16/9 !important;
+      }
+    }
+  `;
+  document.head.appendChild(estilo);
 });
