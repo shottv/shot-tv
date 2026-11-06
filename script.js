@@ -5,6 +5,10 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 const $ = id => document.getElementById(id);
 let peliculas = [];
+
+// ❤️ Películas guardadas por el usuario en "Mi lista"
+let miListaIds = new Set();
+let miListaCargada = false;
 let usuario = null;
 let esAdmin = false;
 let peliculaEditando = null;
@@ -139,13 +143,133 @@ async function cargarNetflixVisto(){
   const lista=data||[];
   estado.textContent=lista.length ? "" : "Aún no hay películas seleccionadas.";
   grid.innerHTML=lista.map(m=>`
-    <article class="card" onclick="abrir(${Number(m.id)})">
+    <article class="card" style="position:relative;" onclick="abrir(${Number(m.id)})">
       <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
       <div class="info">
         <h3>${esc(m.titulo)}</h3>
         <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
       </div>
     </article>`).join("");
+}
+
+async function cargarMiLista(){
+  miListaIds = new Set();
+  miListaCargada = true;
+
+  if(!usuario) return;
+
+  const {data,error} = await db
+    .from("shottv_mi_lista")
+    .select("pelicula_id")
+    .eq("user_id", usuario.id);
+
+  if(error){
+    console.error("Error al cargar Mi lista:", error);
+    return;
+  }
+
+  miListaIds = new Set((data||[]).map(x=>Number(x.pelicula_id)));
+}
+
+async function alternarMiLista(id, event){
+  if(event){
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  if(!usuario){
+    alert("Inicia sesión para guardar películas en Mi lista.");
+    return;
+  }
+
+  const peliculaId = Number(id);
+  const guardada = miListaIds.has(peliculaId);
+
+  try{
+    if(guardada){
+      const {error} = await db
+        .from("shottv_mi_lista")
+        .delete()
+        .eq("user_id", usuario.id)
+        .eq("pelicula_id", peliculaId);
+      if(error) throw error;
+      miListaIds.delete(peliculaId);
+    }else{
+      const {error} = await db
+        .from("shottv_mi_lista")
+        .insert({user_id: usuario.id, pelicula_id: peliculaId});
+      if(error) throw error;
+      miListaIds.add(peliculaId);
+    }
+
+    render();
+    actualizarBotonMiLista();
+  }catch(error){
+    console.error(error);
+    alert("No se pudo actualizar Mi lista: " + (error.message||"Intenta nuevamente."));
+  }
+}
+
+function mostrarMiLista(){
+  if(!usuario){
+    alert("Inicia sesión para ver Mi lista.");
+    return;
+  }
+
+  const guardadas = peliculas.filter(m=>miListaIds.has(Number(m.id)));
+
+  let panel = document.getElementById("miListaPanel");
+  if(!panel){
+    panel = document.createElement("div");
+    panel.id = "miListaPanel";
+    panel.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:10000;overflow:auto;padding:30px 15px;";
+    document.body.appendChild(panel);
+  }
+
+  panel.innerHTML = `
+    <div style="max-width:1000px;margin:auto;background:#061b27;border:1px solid #14546b;border-radius:14px;padding:20px;color:#fff;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:18px;">
+        <h2 style="margin:0;">❤️ Mi lista</h2>
+        <button type="button" onclick="cerrarMiLista()" style="background:#e50914;color:#fff;border:0;border-radius:7px;padding:9px 14px;font-weight:bold;cursor:pointer;">Cerrar</button>
+      </div>
+      ${guardadas.length ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;">
+          ${guardadas.map(m=>`
+            <div style="cursor:pointer;" onclick="cerrarMiLista();abrir(${Number(m.id)})">
+              <img src="${esc(m.portada)}" alt="${esc(m.titulo)}" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;">
+              <div style="font-weight:bold;margin-top:6px;">${esc(m.titulo)}</div>
+              <button type="button" onclick="alternarMiLista(${Number(m.id)},event);mostrarMiLista();" style="margin-top:6px;width:100%;background:#243846;color:#fff;border:0;border-radius:6px;padding:7px;cursor:pointer;">💔 Quitar</button>
+            </div>
+          `).join("")}
+        </div>` :
+        `<div style="text-align:center;padding:35px 10px;color:#c8d8df;">Aún no tienes películas guardadas.<br><br>Presiona ❤️ en cualquier película para agregarla a Mi lista.</div>`
+      }
+    </div>`;
+  panel.style.display = "block";
+}
+
+function cerrarMiLista(){
+  const panel = document.getElementById("miListaPanel");
+  if(panel) panel.style.display = "none";
+}
+
+function crearBotonMiLista(){
+  if(document.getElementById("btnMiLista")) return;
+
+  const btn = document.createElement("button");
+  btn.id = "btnMiLista";
+  btn.type = "button";
+  btn.textContent = "❤️ Mi lista";
+  btn.title = "Ver películas guardadas";
+  btn.onclick = mostrarMiLista;
+  btn.style.cssText = "position:fixed;right:18px;bottom:82px;z-index:9998;background:#e50914;color:#fff;border:0;border-radius:22px;padding:9px 14px;font-weight:bold;box-shadow:0 3px 12px rgba(0,0,0,.35);cursor:pointer;font-size:13px;";
+  document.body.appendChild(btn);
+  actualizarBotonMiLista();
+}
+
+function actualizarBotonMiLista(){
+  const btn = document.getElementById("btnMiLista");
+  if(btn) btn.style.display = usuario ? "block" : "none";
 }
 
 function render(){
@@ -168,6 +292,7 @@ function render(){
         <h3>${esc(m.titulo)}</h3>
         <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
       </div>
+      <button type="button" onclick="alternarMiLista(${Number(m.id)},event)" title="${miListaIds.has(Number(m.id)) ? "Quitar de Mi lista" : "Agregar a Mi lista"}" style="position:absolute;top:8px;right:8px;z-index:3;border:0;border-radius:50%;width:34px;height:34px;background:rgba(0,0,0,.72);color:#fff;font-size:18px;cursor:pointer;">${miListaIds.has(Number(m.id)) ? "❤️" : "🤍"}</button>
       ${esAdmin?`<div class="card-actions" onclick="event.stopPropagation();">
         <button class="move move-first" type="button" onclick="moverPelicula(${Number(m.id)}, -2)" title="Enviar al principio">⏫ Inicio</button>
         <button class="move move-up" type="button" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir una posición">⬆️ Subir</button>
@@ -2168,3 +2293,18 @@ $("catalogo").classList.remove("hidden");
 $("negocios").classList.add("hidden");
 $("enVivo").classList.add("hidden");
 requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
+
+
+// Inicializar la función "Mi lista" sin modificar el resto de Shot TV.
+document.addEventListener("DOMContentLoaded", async () => {
+  try{
+    await new Promise(resolve => setTimeout(resolve, 300));
+    if(typeof usuario !== "undefined" && usuario){
+      await cargarMiLista();
+      render();
+    }
+    crearBotonMiLista();
+  }catch(e){
+    console.error("No se pudo inicializar Mi lista:", e);
+  }
+});
