@@ -332,7 +332,7 @@ function crearSeccionContinuarViendo(){
 
   seccion=document.createElement("section");
   seccion.id="continuarViendo";
-  seccion.style.cssText="display:none;margin:20px 0 28px;padding:16px;background:#062d3a;border-radius:12px;color:#fff;box-sizing:border-box;";
+  seccion.style.cssText="display:none;margin:20px 0 28px;padding:16px;background:#062d3a;border-radius:12px;color:#fff;box-sizing:border-box;width:100%;min-width:0;overflow:hidden;";
 
   const grid=$("grid");
   if(grid && grid.parentElement){
@@ -376,10 +376,10 @@ async function cargarContinuarViendo(){
   seccion.style.display="block";
   seccion.innerHTML=`
     <h2 style="margin:0 0 14px;font-size:22px;">▶️ Continuar viendo</h2>
-    <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;">
+    <div class="continuar-viendo-fila" style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;max-width:100%;min-width:0;">
       ${items.map(m=>`
-        <button type="button" onclick="abrir(${Number(m.id)})" style="position:relative;flex:0 0 145px;border:0;background:transparent;color:#fff;text-align:left;padding:0;cursor:pointer;">
-          <img src="${esc(m.portada)}" alt="${esc(m.titulo)}" style="width:145px;height:210px;object-fit:cover;border-radius:8px;display:block;">
+        <button type="button" onclick="abrir(${Number(m.id)})" style="position:relative;flex:0 0 145px;min-width:145px;border:0;background:transparent;color:#fff;text-align:left;padding:0;cursor:pointer;">
+          <img src="${esc(m.portada)}" alt="${esc(m.titulo)}" style="width:145px;height:210px;max-width:100%;object-fit:cover;border-radius:8px;display:block;">
           <span style="display:block;font-weight:bold;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.titulo)}</span>
           <span style="display:block;color:#b8d2df;font-size:12px;margin-top:3px;">▶ Continuar desde ${Math.floor(m.__progreso/60)}:${String(Math.floor(m.__progreso%60)).padStart(2,"0")}</span>
         </button>
@@ -2488,7 +2488,8 @@ db.auth.getSession().then(async ({data})=>{
 
   await verificarRolAdministrador();
   mostrarAdmin();
-  cargarPeliculas();
+  await cargarPeliculas();
+  await cargarContinuarViendo();
 });
 
 db.auth.onAuthStateChange((_event,session)=>{
@@ -2500,6 +2501,7 @@ db.auth.onAuthStateChange((_event,session)=>{
   setTimeout(async ()=>{
     await verificarRolAdministrador();
     mostrarAdmin();
+    await cargarContinuarViendo();
   },0);
 });
 
@@ -2552,6 +2554,27 @@ document.addEventListener("DOMContentLoaded",()=>{
       }
       #peliculasRelacionadas{
         margin-top:14px !important;
+      }
+      #continuarViendo{
+        margin:14px 0 20px !important;
+        padding:12px !important;
+        border-radius:10px !important;
+      }
+      #continuarViendo h2{
+        font-size:19px !important;
+        margin-bottom:10px !important;
+      }
+      #continuarViendo .continuar-viendo-fila{
+        gap:10px !important;
+        padding-bottom:4px !important;
+      }
+      #continuarViendo .continuar-viendo-fila button{
+        flex-basis:118px !important;
+        min-width:118px !important;
+      }
+      #continuarViendo .continuar-viendo-fila img{
+        width:118px !important;
+        height:171px !important;
       }
     }
   `;
