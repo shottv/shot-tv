@@ -19,6 +19,11 @@ let canalEditandoId = null;
 let peliculaActualParaCast = null;
 let castInicializado = false;
 
+// ▶️ Continuar viendo
+let peliculaActualProgreso = null;
+let ultimoGuardadoProgreso = 0;
+let restaurandoProgreso = false;
+
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 }
@@ -270,6 +275,134 @@ function crearBotonMiLista(){
 function actualizarBotonMiLista(){
   const btn = document.getElementById("btnMiLista");
   if(btn) btn.style.display = usuario ? "block" : "none";
+}
+
+async function guardarProgresoActual(forzar=false){
+  const video=$("player");
+  const pelicula=peliculaActualProgreso;
+
+  if(!usuario || !pelicula || !video || restaurandoProgreso) return;
+  if(!Number.isFinite(video.currentTime) || video.currentTime < 5) return;
+
+  const ahora=Date.now();
+  if(!forzar && ahora-ultimoGuardadoProgreso < 15000) return;
+  ultimoGuardadoProgreso=ahora;
+
+  // Si faltan pocos segundos para terminar, eliminamos la película de "Continuar viendo".
+  const termino=Number(video.duration);
+  if(Number.isFinite(termino) && termino>0 && video.currentTime >= termino-30){
+    const {error}=await db.from("shottv_continuar_viendo")
+      .delete()
+      .eq("user_id",usuario.id)
+      .eq("pelicula_id",Number(pelicula.id));
+    if(error) console.warn("No se pudo eliminar el progreso terminado:",error);
+    return;
+  }
+
+  const {error}=await db.from("shottv_continuar_viendo").upsert({
+    user_id:usuario.id,
+    pelicula_id:Number(pelicula.id),
+    progreso:Number(video.currentTime.toFixed(1)),
+    actualizado_en:new Date().toISOString()
+  },{onConflict:"user_id,pelicula_id"});
+
+  if(error) console.warn("No se pudo guardar el progreso:",error);
+}
+
+async function recuperarProgreso(peliculaId){
+  if(!usuario) return 0;
+
+  const {data,error}=await db
+    .from("shottv_continuar_viendo")
+    .select("progreso")
+    .eq("user_id",usuario.id)
+    .eq("pelicula_id",Number(peliculaId))
+    .maybeSingle();
+
+  if(error){
+    console.warn("No se pudo recuperar el progreso:",error);
+    return 0;
+  }
+  return Number(data?.progreso||0);
+}
+
+function crearSeccionContinuarViendo(){
+  let seccion=document.getElementById("continuarViendo");
+  if(seccion) return seccion;
+
+  seccion=document.createElement("section");
+  seccion.id="continuarViendo";
+  seccion.style.cssText="display:none;margin:20px 0 28px;padding:16px;background:#062d3a;border-radius:12px;color:#fff;box-sizing:border-box;";
+
+  const grid=$("grid");
+  if(grid && grid.parentElement){
+    grid.parentElement.insertBefore(seccion,grid);
+  }
+  return seccion;
+}
+
+async function cargarContinuarViendo(){
+  const seccion=crearSeccionContinuarViendo();
+  if(!seccion) return;
+
+  if(!usuario){
+    seccion.style.display="none";
+    return;
+  }
+
+  const {data,error}=await db
+    .from("shottv_continuar_viendo")
+    .select("pelicula_id,progreso,actualizado_en")
+    .eq("user_id",usuario.id)
+    .order("actualizado_en",{ascending:false})
+    .limit(12);
+
+  if(error){
+    console.warn("No se pudo cargar Continuar viendo:",error);
+    seccion.style.display="none";
+    return;
+  }
+
+  const items=(data||[]).map(r=>{
+    const pelicula=peliculas.find(p=>Number(p.id)===Number(r.pelicula_id));
+    return pelicula ? {...pelicula,__progreso:Number(r.progreso||0)} : null;
+  }).filter(Boolean);
+
+  if(!items.length){
+    seccion.style.display="none";
+    return;
+  }
+
+  seccion.style.display="block";
+  seccion.innerHTML=`
+    <h2 style="margin:0 0 14px;font-size:22px;">▶️ Continuar viendo</h2>
+    <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;">
+      ${items.map(m=>`
+        <button type="button" onclick="abrir(${Number(m.id)})" style="position:relative;flex:0 0 145px;border:0;background:transparent;color:#fff;text-align:left;padding:0;cursor:pointer;">
+          <img src="${esc(m.portada)}" alt="${esc(m.titulo)}" style="width:145px;height:210px;object-fit:cover;border-radius:8px;display:block;">
+          <span style="display:block;font-weight:bold;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.titulo)}</span>
+          <span style="display:block;color:#b8d2df;font-size:12px;margin-top:3px;">▶ Continuar desde ${Math.floor(m.__progreso/60)}:${String(Math.floor(m.__progreso%60)).padStart(2,"0")}</span>
+        </button>
+      `).join("")}
+    </div>`;
+}
+
+async function restaurarProgresoEnVideo(progreso){
+  const video=$("player");
+  if(!video || !progreso || progreso<5) return;
+
+  const aplicar=()=>{
+    if(!Number.isFinite(video.duration) || video.duration<=0) return;
+    const destino=Math.min(progreso,Math.max(0,video.duration-5));
+    if(destino>0){
+      restaurandoProgreso=true;
+      try{ video.currentTime=destino; }catch(e){ console.warn("No se pudo restaurar el progreso:",e); }
+      setTimeout(()=>{restaurandoProgreso=false;},500);
+    }
+  };
+
+  if(video.readyState>=1) aplicar();
+  else video.addEventListener("loadedmetadata",aplicar,{once:true});
 }
 
 function render(){
@@ -2226,10 +2359,23 @@ async function abrir(id){
   }
 
   peliculaActualParaCast=m;
+  peliculaActualProgreso=m;
+  ultimoGuardadoProgreso=0;
   $("ptitulo").textContent=m.titulo;
   $("modal").classList.add("open");
   mostrarPeliculasRelacionadas(m);
+
+  // Recuperar el punto donde el usuario dejó la película.
+  const progresoGuardado=await recuperarProgreso(m.id);
+
   reproducirFuente(m.url);
+
+  // YouTube no permite leer el minuto de reproducción con el iframe actual.
+  // Para enlaces de video directos restauramos el progreso automáticamente.
+  const esYouTube=!!detectarYouTube(String(m.url||""));
+  if(!esYouTube && progresoGuardado>0){
+    restaurarProgresoEnVideo(progresoGuardado);
+  }
 }
 
 function alternarPantallaCompleta(){
@@ -2241,11 +2387,14 @@ function alternarPantallaCompleta(){
   document.body.style.overflow=activa?"hidden":"";
 }
 
-function cerrar(){
+async function cerrar(){
+  await guardarProgresoActual(true);
   $("modal").classList.remove("custom-fullscreen");
   document.body.style.overflow="";
   limpiarReproductores();
   peliculaActualParaCast=null;
+  peliculaActualProgreso=null;
+  cargarContinuarViendo();
   const relacionadas=document.getElementById("peliculasRelacionadas");
   if(relacionadas) relacionadas.style.display="none";
   $("modal").classList.remove("open");
@@ -2291,11 +2440,20 @@ $("cerrarEdicion").onclick=cerrarEdicion;
 $("editModal").onclick=e=>{if(e.target===$("editModal"))cerrarEdicion()};
 $("cerrar").onclick=cerrar;
 $("modal").onclick=e=>{if(e.target===$("modal"))cerrar()};
+
+const shotTvVideoProgreso=$("player");
+if(shotTvVideoProgreso){
+  shotTvVideoProgreso.addEventListener("timeupdate",()=>guardarProgresoActual(false));
+  shotTvVideoProgreso.addEventListener("pause",()=>guardarProgresoActual(true));
+  shotTvVideoProgreso.addEventListener("ended",()=>guardarProgresoActual(true));
+}
+window.addEventListener("beforeunload",()=>{ guardarProgresoActual(true); });
 $("cerrarFotoNegocio").onclick=cerrarFotoNegocio;
 $("businessPhotoModal").onclick=e=>{if(e.target===$("businessPhotoModal"))cerrarFotoNegocio()};
 instalarMenuCuenta();
 cargarPublicidad();
 cargarNegocios();
+setTimeout(()=>cargarContinuarViendo(),800);
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&$("modal").classList.contains("custom-fullscreen")){ alternarPantallaCompleta(); return; }
   if(e.key==="Escape"&&$("modal").classList.contains("open"))cerrar();
