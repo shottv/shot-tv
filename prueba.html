@@ -9,58 +9,56 @@
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:#07111b;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px 16px}
 .contenedor{width:100%;max-width:430px;text-align:center}
-.logo{font-size:32px;font-weight:800;letter-spacing:1px;margin-bottom:28px}.logo span{color:#e53945}
-.tarjeta{background:#0d1c29;border:1px solid #20394c;border-radius:18px;padding:30px 24px;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+.logo{font-size:32px;font-weight:800;letter-spacing:1px;margin-bottom:28px}.logo span{color:#ff2440}
+.tarjeta{background:#0d1c29;border:1px solid #203f54;border-radius:18px;padding:30px 24px;box-shadow:0 14px 40px rgba(0,0,0,.35)}
 .icono{font-size:42px;margin-bottom:8px}h1{font-size:25px;margin:10px 0}.descripcion,.nota{color:#b8c7d3;line-height:1.5}
-.descripcion{font-size:15px;margin-bottom:24px}label{display:block;text-align:left;font-size:13px;color:#b8c7d3;margin:14px 0 7px}
+.descripcion{font-size:15px;margin-bottom:24px}label{display:block;text-align:left;font-size:13px;color:#c7d5df;margin:14px 0 7px}
 input{width:100%;padding:14px;border-radius:10px;border:1px solid #29465a;background:#071725;color:#fff;font-size:16px;outline:none}
-input:focus{border-color:#e53945}
-button{width:100%;margin-top:22px;padding:15px;border:0;border-radius:10px;background:#e53945;color:#fff;font-size:15px;font-weight:800;cursor:pointer}
+input:focus{border-color:#ff2440}
+button,.entrar{width:100%;margin-top:22px;padding:15px;border:0;border-radius:10px;background:#ff2440;color:#fff;font-size:15px;font-weight:800;cursor:pointer;text-decoration:none;display:block}
 button:disabled{opacity:.65;cursor:wait}
-.nota{font-size:13px;margin-top:20px}.mensaje{display:none;margin-top:18px;padding:13px;border-radius:10px;font-size:14px;line-height:1.45;text-align:left}
-.mensaje.error,.mensaje.exito{display:block}.mensaje.error{background:#3a1820;color:#ffd7db}.mensaje.exito{background:#123424;color:#d5ffe5}
-.login{margin-top:22px;color:#b8c7d3;font-size:14px}.login a,.volver{color:#fff;font-weight:bold;text-decoration:none}.volver{display:inline-block;margin-top:22px;color:#91a7b8;font-size:13px}
-.paso{display:none}.paso.activo{display:block}.correo-destino{font-weight:bold;color:#fff;word-break:break-word}
-.codigo{letter-spacing:8px;text-align:center;font-size:22px;font-weight:bold}
-.entrar{display:none;width:100%;margin-top:14px;padding:14px;border-radius:10px;background:#1b8f52;color:white;text-decoration:none;font-weight:bold}
-@media(max-width:480px){.tarjeta{padding:26px 18px}.logo{font-size:28px}h1{font-size:22px}}
+.mensaje{display:none;margin-top:18px;padding:14px;border-radius:10px;font-size:14px;line-height:1.5;text-align:left}
+.mensaje.error,.mensaje.exito,.mensaje.info{display:block}.mensaje.error{background:#481b24;color:#ffd7db}.mensaje.exito{background:#123b29;color:#d5ffe5}.mensaje.info{background:#142d40;color:#d7edff}
+.paso{display:none}.paso.activo{display:block}.nota{font-size:13px;margin-top:22px}.volver{display:inline-block;margin-top:22px;color:#91a7b8;font-size:13px;text-decoration:none;font-weight:bold}
+#entrarShotTV{display:none;background:#198754}
 </style>
 </head>
 <body>
 <main class="contenedor">
-<div class="logo">▶ SHOT <span>TV</span></div>
-<section class="tarjeta">
-<div class="icono">🎁</div>
+  <div class="logo">▶ SHOT <span>TV</span></div>
 
-<div id="pasoCorreo" class="paso activo">
-  <h1>Prueba gratis por 24 horas</h1>
-  <p class="descripcion">Ingresa tu correo y te enviaremos un código para verificar tu acceso.</p>
-  <form id="formCorreo">
-    <label for="correo">📧 Correo electrónico</label>
-    <input id="correo" type="email" placeholder="tu@correo.com" required autocomplete="email">
-    <button type="submit" id="btnEnviar">📩 ENVIAR CÓDIGO</button>
-  </form>
-</div>
+  <section class="tarjeta">
+    <div class="icono">🎁</div>
 
-<div id="pasoCodigo" class="paso">
-  <h1>Verifica tu correo</h1>
-  <p class="descripcion">Enviamos un código de verificación a:</p>
-  <p id="correoDestino" class="correo-destino"></p>
-  <form id="formCodigo">
-    <label for="codigo">🔢 Código de verificación</label>
-    <input id="codigo" class="codigo" type="text" inputmode="numeric" maxlength="8" placeholder="000000" required autocomplete="one-time-code">
-    <button type="submit" id="btnVerificar">🎬 VERIFICAR Y ACTIVAR</button>
-  </form>
-  <button type="button" id="btnReenviar" style="background:#173247;margin-top:12px">↻ REENVIAR CÓDIGO</button>
-</div>
+    <div id="pasoSolicitud" class="paso activo">
+      <h1>Prueba gratis por 24 horas</h1>
+      <p class="descripcion">Ingresa tu correo y te enviaremos un enlace para verificar tu acceso.</p>
 
-<div id="mensaje" class="mensaje" role="status"></div>
-<a id="entrarShotTV" class="entrar" href="./">🚀 ENTRAR A SHOT TV</a>
+      <form id="formCorreo">
+        <label for="correo">📧 Correo electrónico</label>
+        <input id="correo" type="email" placeholder="tu@correo.com" required autocomplete="email">
+        <button type="submit" id="btnEnviar">📩 ENVIAR ENLACE DE ACCESO</button>
+      </form>
+    </div>
 
-<p class="nota">⏱️ Tu acceso tendrá una duración de 24 horas.<br>La prueba gratuita es válida una sola vez por usuario.</p>
-<div class="login">¿Ya tienes una cuenta?<br><a href="./">INICIAR SESIÓN EN SHOT TV</a></div>
-</section>
-<a class="volver" href="./">← Volver a Shot TV</a>
+    <div id="pasoRevision" class="paso">
+      <h1>Revisa tu correo 📬</h1>
+      <p class="descripcion">
+        Enviamos un enlace de acceso a:<br>
+        <strong id="correoDestino"></strong>
+      </p>
+      <div class="mensaje info">
+        🔐 Abre el correo y presiona el enlace para verificar que el correo te pertenece. Después regresarás automáticamente a Shot TV.
+      </div>
+    </div>
+
+    <div id="mensaje" class="mensaje" role="status"></div>
+    <a id="entrarShotTV" class="entrar" href="./">🎬 ENTRAR A SHOT TV</a>
+
+    <p class="nota">⏱️ Tu acceso tendrá una duración de 24 horas.<br>La prueba gratuita es válida una sola vez por usuario.</p>
+  </section>
+
+  <a class="volver" href="./">← Volver a Shot TV</a>
 </main>
 
 <script>
@@ -68,125 +66,84 @@ const SUPABASE_URL = "https://akpsjzcuimlwvehbammq.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-const pasoCorreo=document.getElementById("pasoCorreo");
-const pasoCodigo=document.getElementById("pasoCodigo");
-const correoInput=document.getElementById("correo");
-const correoDestino=document.getElementById("correoDestino");
-const codigoInput=document.getElementById("codigo");
-const mensaje=document.getElementById("mensaje");
-const btnEnviar=document.getElementById("btnEnviar");
-const btnVerificar=document.getElementById("btnVerificar");
-const btnReenviar=document.getElementById("btnReenviar");
-const entrar=document.getElementById("entrarShotTV");
-let emailActual="";
+const solicitud = document.getElementById("pasoSolicitud");
+const revision = document.getElementById("pasoRevision");
+const correo = document.getElementById("correo");
+const correoDestino = document.getElementById("correoDestino");
+const boton = document.getElementById("btnEnviar");
+const mensaje = document.getElementById("mensaje");
+const entrar = document.getElementById("entrarShotTV");
 
 function mostrar(texto,tipo){
   mensaje.className="mensaje "+tipo;
   mensaje.textContent=texto;
 }
-function limpiarMensaje(){mensaje.className="mensaje";mensaje.textContent=""}
-function activarPasoCodigo(){
-  pasoCorreo.classList.remove("activo");
-  pasoCodigo.classList.add("activo");
-  codigoInput.focus();
+
+async function activarPruebaSiHaySesion(){
+  const {data:{session}} = await db.auth.getSession();
+  if(!session) return;
+
+  solicitud.style.display="none";
+  revision.style.display="none";
+  mostrar("🔐 Correo verificado. Estamos activando tu prueba gratuita...","info");
+
+  const {data,error} = await db.rpc("activar_prueba_gratis");
+
+  if(error){
+    const texto = error.message || "No se pudo activar la prueba.";
+    if(/ya utilizó/i.test(texto)){
+      mostrar("ℹ️ Este correo ya utilizó su prueba gratuita. Si tienes una suscripción, puedes iniciar sesión en Shot TV.","error");
+    } else {
+      mostrar("⚠️ "+texto,"error");
+    }
+    return;
+  }
+
+  const fecha = Array.isArray(data) ? data[0]?.fecha_vencimiento : null;
+  const vencimiento = fecha
+    ? new Date(fecha).toLocaleString("es-MX",{dateStyle:"long",timeStyle:"short"})
+    : "dentro de 24 horas";
+
+  mostrar("🎉 ¡Tu correo fue verificado y tu prueba está activa! Tu acceso vence el "+vencimiento+".","exito");
+  entrar.style.display="block";
 }
 
-async function enviarCodigo(){
-  emailActual=correoInput.value.trim().toLowerCase();
-  if(!emailActual) return;
-
-  btnEnviar.disabled=true;
-  btnEnviar.textContent="ENVIANDO CÓDIGO...";
-  limpiarMensaje();
-
-  try{
-    const {error}=await db.auth.signInWithOtp({
-      email:emailActual,
-      options:{ shouldCreateUser:true }
-    });
-    if(error) throw error;
-
-    correoDestino.textContent=emailActual;
-    activarPasoCodigo();
-    mostrar("📩 Código enviado. Revisa tu correo electrónico e ingrésalo aquí.","exito");
-  }catch(error){
-    console.error(error);
-    mostrar("⚠️ "+(error.message || "No se pudo enviar el código."),"error");
-  }finally{
-    btnEnviar.disabled=false;
-    btnEnviar.textContent="📩 ENVIAR CÓDIGO";
-  }
-}
-
-document.getElementById("formCorreo").addEventListener("submit",async(e)=>{
+document.getElementById("formCorreo").addEventListener("submit", async (e)=>{
   e.preventDefault();
-  await enviarCodigo();
-});
+  const email = correo.value.trim().toLowerCase();
+  if(!email) return;
 
-btnReenviar.addEventListener("click",async()=>{
-  btnReenviar.disabled=true;
-  btnReenviar.textContent="REENVIANDO...";
-  try{
-    const {error}=await db.auth.signInWithOtp({
-      email:emailActual,
-      options:{ shouldCreateUser:true }
-    });
-    if(error) throw error;
-    mostrar("📩 Enviamos un nuevo código a tu correo.","exito");
-  }catch(error){
-    mostrar("⚠️ "+(error.message || "No se pudo reenviar el código."),"error");
-  }finally{
-    btnReenviar.disabled=false;
-    btnReenviar.textContent="↻ REENVIAR CÓDIGO";
-  }
-});
-
-document.getElementById("formCodigo").addEventListener("submit",async(e)=>{
-  e.preventDefault();
-  const token=codigoInput.value.trim();
-
-  if(!token){mostrar("⚠️ Ingresa el código que recibiste.","error");return;}
-
-  btnVerificar.disabled=true;
-  btnVerificar.textContent="VERIFICANDO...";
-  limpiarMensaje();
+  boton.disabled=true;
+  boton.textContent="ENVIANDO...";
+  mensaje.className="mensaje";
 
   try{
-    // Verifica el código OTP enviado por Supabase.
-    const {data:verificacion,error:verificacionError}=await db.auth.verifyOtp({
-      email:emailActual,
-      token,
-      type:"email"
-    });
-    if(verificacionError) throw verificacionError;
-    if(!verificacion?.user) throw new Error("No se pudo verificar tu correo.");
+    const redirectTo = window.location.origin + window.location.pathname;
 
-    // Solo después de comprobar que el usuario controla el correo
-    // se activa la prueba de 24 horas.
-    const {data,error}=await db.rpc("activar_prueba_gratis");
+    const {error} = await db.auth.signInWithOtp({
+      email,
+      options:{
+        shouldCreateUser:true,
+        emailRedirectTo:redirectTo
+      }
+    });
+
     if(error) throw error;
 
-    const fecha=Array.isArray(data) ? data[0]?.fecha_vencimiento : null;
-    const vencimiento=fecha
-      ? new Date(fecha).toLocaleString("es-MX",{dateStyle:"long",timeStyle:"short"})
-      : "dentro de 24 horas";
-
-    pasoCodigo.style.display="none";
-    mostrar("🎉 ¡Correo verificado! Tu prueba está activa y vence el "+vencimiento+".","exito");
-    entrar.style.display="block";
+    correoDestino.textContent=email;
+    solicitud.classList.remove("activo");
+    revision.classList.add("activo");
 
   }catch(error){
     console.error(error);
-    let texto=error?.message || "No se pudo verificar el código.";
-    if(/ya utilizó/i.test(texto)) texto="Este correo ya utilizó una prueba gratuita.";
-    if(/Token has expired|expired/i.test(texto)) texto="El código venció. Solicita uno nuevo.";
-    if(/invalid|token/i.test(texto) && !/prueba gratuita/i.test(texto)) texto="El código no es válido. Revisa el correo e inténtalo nuevamente.";
-    mostrar("⚠️ "+texto,"error");
+    mostrar("⚠️ "+(error.message || "No se pudo enviar el enlace."),"error");
   }finally{
-    btnVerificar.disabled=false;
-    btnVerificar.textContent="🎬 VERIFICAR Y ACTIVAR";
+    boton.disabled=false;
+    boton.textContent="📩 ENVIAR ENLACE DE ACCESO";
   }
 });
+
+activarPruebaSiHaySesion();
 </script>
 </body>
 </html>
