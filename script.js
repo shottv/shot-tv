@@ -151,7 +151,16 @@ async function cargarNetflixVisto(){
 function render(){
   const q=$("buscar").value.toLowerCase().trim();
   const lista=peliculas.filter(m=>String(m.titulo||"").toLowerCase().includes(q));
-  $("estado").textContent=lista.length?"":"No hay películas para mostrar.";
+
+  // Mostrar un mensaje más claro al realizar una búsqueda.
+  if(q){
+    $("estado").textContent=lista.length
+      ? `🔎 Resultados para: "${$("buscar").value.trim()}"`
+      : `🔎 No encontramos películas con "${$("buscar").value.trim()}".`;
+  }else{
+    $("estado").textContent=lista.length ? "" : "No hay películas para mostrar.";
+  }
+
   $("grid").innerHTML=lista.map(m=>`
     <article class="card" onclick="abrir(${Number(m.id)})">
       <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
