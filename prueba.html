@@ -15,6 +15,9 @@ body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background
 .descripcion{font-size:15px;margin-bottom:24px}label{display:block;text-align:left;font-size:13px;color:#c7d5df;margin:14px 0 7px}
 input{width:100%;padding:14px;border-radius:10px;border:1px solid #29465a;background:#071725;color:#fff;font-size:16px;outline:none}
 input:focus{border-color:#ff2440}
+.campo-password{position:relative}
+.campo-password input{padding-right:52px}
+.mostrar-password{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:auto;margin:0;padding:7px 9px;border:0;border-radius:8px;background:transparent;color:#c7d5df;font-size:18px;cursor:pointer}
 button,.entrar{width:100%;margin-top:22px;padding:15px;border:0;border-radius:10px;background:#ff2440;color:#fff;font-size:15px;font-weight:800;cursor:pointer;text-decoration:none;display:block}
 button:disabled{opacity:.65;cursor:wait}
 .mensaje{display:none;margin-top:18px;padding:14px;border-radius:10px;font-size:14px;line-height:1.5;text-align:left}
@@ -32,30 +35,43 @@ button:disabled{opacity:.65;cursor:wait}
 
     <div id="pasoSolicitud" class="paso activo">
       <h1>Prueba gratis por 24 horas</h1>
-      <p class="descripcion">Ingresa tu correo y te enviaremos un enlace para verificar tu acceso.</p>
+      <p class="descripcion">Crea tus datos de acceso para disfrutar Shot TV durante 24 horas.</p>
 
       <form id="formCorreo">
         <label for="correo">📧 Correo electrónico</label>
         <input id="correo" type="email" placeholder="tu@correo.com" required autocomplete="email">
-        <button type="submit" id="btnEnviar">📩 ENVIAR ENLACE DE ACCESO</button>
+
+        <label for="contrasena">🔒 Crea una contraseña</label>
+        <div class="campo-password">
+          <input id="contrasena" type="password" placeholder="Mínimo 6 caracteres" required minlength="6" autocomplete="new-password">
+          <button type="button" class="mostrar-password" data-target="contrasena">👁️</button>
+        </div>
+
+        <label for="confirmarContrasena">🔒 Confirma tu contraseña</label>
+        <div class="campo-password">
+          <input id="confirmarContrasena" type="password" placeholder="Escribe nuevamente tu contraseña" required minlength="6" autocomplete="new-password">
+          <button type="button" class="mostrar-password" data-target="confirmarContrasena">👁️</button>
+        </div>
+
+        <button type="submit" id="btnEnviar">🎁 ACTIVAR PRUEBA GRATIS</button>
       </form>
     </div>
 
     <div id="pasoRevision" class="paso">
       <h1>Revisa tu correo 📬</h1>
       <p class="descripcion">
-        Enviamos un enlace de acceso a:<br>
+        Tu prueba fue activada para:<br>
         <strong id="correoDestino"></strong>
       </p>
       <div class="mensaje info">
-        🔐Abre el correo y presiona <strong>“Sign in”</strong> para verificar que el correo te pertenece. Después regresarás automáticamente a Shot TV.
+        🔐 Guarda tu correo y contraseña para volver a entrar si cierras sesión.
       </div>
     </div>
 
     <div id="mensaje" class="mensaje" role="status"></div>
     <a id="entrarShotTV" class="entrar" href="./">🎬 ENTRAR A SHOT TV</a>
 
-    <p class="nota">⏱️ Tu acceso tendrá una duración de 24 horas.<br>La prueba gratuita es válida una sola vez por usuario.</p>
+    <p class="nota">⏱️ Tu acceso tendrá una duración de 24 horas.<br>Guarda tu correo y contraseña para volver a entrar. La prueba gratuita es válida una sola vez por usuario.</p>
   </section>
 
   <a class="volver" href="./">← Volver a Shot TV</a>
@@ -70,6 +86,8 @@ const solicitud = document.getElementById("pasoSolicitud");
 const revision = document.getElementById("pasoRevision");
 const correo = document.getElementById("correo");
 const correoDestino = document.getElementById("correoDestino");
+const contrasena = document.getElementById("contrasena");
+const confirmarContrasena = document.getElementById("confirmarContrasena");
 const boton = document.getElementById("btnEnviar");
 const mensaje = document.getElementById("mensaje");
 const entrar = document.getElementById("entrarShotTV");
@@ -108,56 +126,55 @@ async function activarPruebaSiHaySesion(){
   entrar.style.display="block";
 }
 
+document.querySelectorAll(".mostrar-password").forEach((b)=>{
+  b.addEventListener("click", ()=>{
+    const campo=document.getElementById(b.dataset.target);
+    const visible=campo.type==="text";
+    campo.type=visible?"password":"text";
+    b.textContent=visible?"👁️":"🙈";
+  });
+});
+
 document.getElementById("formCorreo").addEventListener("submit", async (e)=>{
   e.preventDefault();
-  const email = correo.value.trim().toLowerCase();
-  if(!email) return;
+  const email=correo.value.trim().toLowerCase();
+  const password=contrasena.value;
+  const confirmacion=confirmarContrasena.value;
 
-  // Solo se permiten proveedores de correo aceptados para la prueba gratuita
-  const dominiosPermitidos = [
-    "gmail.com",
-    "hotmail.com",
-    "outlook.com",
-    "live.com"
-  ];
-
-  const dominio = email.split("@").pop();
-
-  if(!dominiosPermitidos.includes(dominio)){
-    mostrar(
-      "⚠️ Para solicitar la prueba gratuita utiliza un correo de Gmail, Hotmail, Outlook o Live.",
-      "error"
-    );
+  if(password.length<6){
+    mostrar("⚠️ La contraseña debe tener al menos 6 caracteres.","error");
+    return;
+  }
+  if(password!==confirmacion){
+    mostrar("⚠️ Las contraseñas no coinciden. Revísalas antes de continuar.","error");
     return;
   }
 
   boton.disabled=true;
-  boton.textContent="ENVIANDO...";
+  boton.textContent="CREANDO ACCESO...";
   mensaje.className="mensaje";
 
   try{
-    const redirectTo = window.location.origin + window.location.pathname;
-
-    const {error} = await db.auth.signInWithOtp({
-      email,
-      options:{
-        shouldCreateUser:true,
-        emailRedirectTo:redirectTo
-      }
+    const {data,error}=await db.auth.signUp({
+      email,password,
+      options:{emailRedirectTo:window.location.origin+window.location.pathname}
     });
-
     if(error) throw error;
+
+    if(data && data.session){
+      await activarPruebaSiHaySesion();
+      return;
+    }
 
     correoDestino.textContent=email;
     solicitud.classList.remove("activo");
     revision.classList.add("activo");
-
   }catch(error){
     console.error(error);
-    mostrar("⚠️ "+(error.message || "No se pudo enviar el enlace."),"error");
+    mostrar("⚠️ "+(error.message||"No se pudo crear el acceso."),"error");
   }finally{
     boton.disabled=false;
-    boton.textContent="📩 ENVIAR ENLACE DE ACCESO";
+    boton.textContent="🎁 ACTIVAR PRUEBA GRATIS";
   }
 });
 
