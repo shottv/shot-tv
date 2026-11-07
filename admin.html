@@ -293,7 +293,10 @@
           if (!autorizado) throw new Error("SIN_PERMISO");
 
           const [pruebasRes, suscripcionesRes, peliculasRes, topRes] = await Promise.all([
-            db.from("shottv_pruebas").select("user_id", { count: "exact" }).eq("estado", "activa"),
+            // La tabla de pruebas no utiliza una columna "estado".
+            // Una prueba se considera activa mientras su fecha de vencimiento sea posterior a este momento.
+            db.from("shottv_pruebas").select("user_id", { count: "exact" })
+              .gt("fecha_vencimiento", new Date().toISOString()),
             db.from("shottv_suscripciones").select("user_id", { count: "exact" }).eq("estado", "activa"),
             db.from("peliculas").select("id", { count: "exact", head: true }),
             db.from("peliculas").select("titulo, portada, vistas").order("vistas", { ascending: false }).limit(5)
