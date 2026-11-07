@@ -896,37 +896,24 @@
 })();
 </script>
 <script>
-/* Conserva la posición exacta de la página al cambiar de pestaña o volver a ella. */
+/* Guarda la posición por pestaña sin mover la página al cambiar a otra aplicación o navegador. */
 (function(){
-  const key = "shottv_admin_scroll_position";
-  let saved = null;
+  const key = "shottv_scroll_position";
+
+  // Evita que el navegador intente restaurar una posición diferente al volver a esta pestaña.
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 
   function guardarPosicion(){
-    if (document.visibilityState === "hidden" || document.activeElement) {
-      saved = window.scrollY || window.pageYOffset || 0;
-      sessionStorage.setItem(key, String(saved));
-    }
+    sessionStorage.setItem(key, String(window.scrollY || window.pageYOffset || 0));
   }
 
-  function restaurarPosicion(){
-    const value = saved ?? Number(sessionStorage.getItem(key));
-    if (!Number.isFinite(value)) return;
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: value, left: 0, behavior: "auto" });
-      setTimeout(() => window.scrollTo({ top: value, left: 0, behavior: "auto" }), 150);
-    });
-  }
-
-  window.addEventListener("scroll", () => {
-    sessionStorage.setItem(key, String(window.scrollY || 0));
-  }, {passive:true});
-
+  // Solo guardamos la posición. No ejecutamos scrollTo al recuperar el foco,
+  // porque eso puede provocar saltos cuando el usuario cambia de navegador.
+  window.addEventListener("scroll", guardarPosicion, {passive:true});
+  window.addEventListener("pagehide", guardarPosicion);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") guardarPosicion();
-    if (document.visibilityState === "visible") restaurarPosicion();
   });
-
-  window.addEventListener("focus", restaurarPosicion);
 })();
 </script>
 
