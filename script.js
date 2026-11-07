@@ -90,19 +90,36 @@ function actualizarVisibilidadCuenta(){
 async function actualizarPanelCuenta(){
   const correo=document.getElementById('shotTvCuentaCorreo');
   const estado=document.getElementById('shotTvCuentaEstado');
-  correo.textContent=usuario?.email||'—';
+  if(correo) correo.textContent=usuario?.email||'—';
+  if(!estado) return;
   if(!usuario){estado.textContent='No has iniciado sesión.';return;}
-  estado.textContent='Consultando suscripción…';
+
+  estado.textContent='Consultando acceso…';
   try{
-    const {data,error}=await db.from('shottv_suscripciones').select('estado,fecha_vencimiento')
-      .eq('user_id',usuario.id).eq('estado','activa').gt('fecha_vencimiento',new Date().toISOString())
-      .order('fecha_vencimiento',{ascending:false}).limit(1);
-    if(error) throw error;
-    if(data?.length){
-      const vence=new Date(data[0].fecha_vencimiento).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
-      estado.textContent=`Activa · Vence el ${vence}`;
-    }else estado.textContent='Sin suscripción activa. Suscríbete para acceder al contenido.';
-  }catch(e){console.warn('No se pudo consultar el estado de la cuenta:',e);estado.textContent='No se pudo consultar la suscripción en este momento.';}
+    const [suscripcionRes,pruebaRes]=await Promise.all([
+      db.from('shottv_suscripciones').select('estado,fecha_vencimiento').eq('user_id',usuario.id).eq('estado','activa').order('fecha_vencimiento',{ascending:false}).limit(1),
+      db.from('shottv_pruebas').select('estado,fecha_inicio,fecha_vencimiento').eq('user_id',usuario.id).order('fecha_vencimiento',{ascending:false}).limit(1)
+    ]);
+    if(suscripcionRes.error) throw suscripcionRes.error;
+
+    const suscripcion=(suscripcionRes.data||[])[0];
+    const prueba=(pruebaRes.data||[])[0];
+
+    if(suscripcion && new Date(suscripcion.fecha_vencimiento).getTime()>Date.now()){
+      const vence=new Date(suscripcion.fecha_vencimiento).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+      estado.textContent=`Suscripción activa · Vence el ${vence}`;
+      return;
+    }
+    if(prueba && prueba.estado==='activa' && new Date(prueba.fecha_vencimiento).getTime()>Date.now()){
+      const vence=new Date(prueba.fecha_vencimiento).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+      estado.textContent=`🎁 Prueba gratuita activa · Vence el ${vence}`;
+      return;
+    }
+    estado.textContent='Sin suscripción activa. Suscríbete para acceder al contenido.';
+  }catch(e){
+    console.warn('No se pudo consultar el estado de la cuenta:',e);
+    estado.textContent='No se pudo consultar el acceso en este momento.';
+  }
 }
 
 function mensaje(id, texto, error=false){
@@ -2514,11 +2531,13 @@ db.auth.getSession().then(async ({data})=>{
   mostrarAdmin();
   await cargarPeliculas();
   await cargarContinuarViendo();
+  iniciarVerificacionPruebaShotTV();
 });
 
 db.auth.onAuthStateChange((_event,session)=>{
   usuario=session?.user||null;
   actualizarVisibilidadCuenta();
+  if(usuario) iniciarVerificacionPruebaShotTV();
   esAdmin=false;
   mostrarAdmin();
   // Verify the role after the auth callback completes.
@@ -2611,70 +2630,54 @@ document.addEventListener("DOMContentLoaded",()=>{
 // ============================================================
 async function verificarAvisoPruebaShotTV(){
   try{
-    if(!usuario || !usuario.id) return;
-    if(document.getElementById("avisoPruebaShotTV")) return;
+    if(!usuario?.id || document.getElementById("avisoPruebaShotTV")) return;
 
-    // Si existe una suscripción activa, no se muestra el aviso de prueba.
-    const {data:suscripcion}=await db
-      .from("shottv_suscripciones")
-      .select("id")
-      .eq("user_id",usuario.id)
-      .eq("estado","activa")
-      .gt("fecha_vencimiento",new Date().toISOString())
-      .limit(1);
+    const [suscripcionRes,pruebaRes]=await Promise.all([
+      db.from("shottv_suscripciones").select("fecha_vencimiento").eq("user_id",usuario.id).eq("estado","activa").order("fecha_vencimiento",{ascending:false}).limit(1),
+      db.from("shottv_pruebas").select("estado,fecha_vencimiento").eq("user_id",usuario.id).order("fecha_vencimiento",{ascending:false}).limit(1)
+    ]);
 
-    if(Array.isArray(suscripcion) && suscripcion.length) return;
+    if(suscripcionRes.error || pruebaRes.error){
+      console.warn("Shot TV: no se pudo consultar la prueba.",suscripcionRes.error||pruebaRes.error);
+      return;
+    }
 
-    const {data:pruebas,error}=await db
-      .from("shottv_pruebas")
-      .select("fecha_vencimiento")
-      .eq("user_id",usuario.id)
-      .eq("estado","activa")
-      .gt("fecha_vencimiento",new Date().toISOString())
-      .order("fecha_vencimiento",{ascending:false})
-      .limit(1);
+    const suscripcion=(suscripcionRes.data||[])[0];
+    if(suscripcion && new Date(suscripcion.fecha_vencimiento).getTime()>Date.now()) return;
 
-    if(error || !Array.isArray(pruebas) || !pruebas.length) return;
+    const prueba=(pruebaRes.data||[])[0];
+    if(!prueba || prueba.estado!=="activa") return;
 
-    const faltanMs=new Date(pruebas[0].fecha_vencimiento).getTime()-Date.now();
+    const faltanMs=new Date(prueba.fecha_vencimiento).getTime()-Date.now();
     const limite=6*60*60*1000;
-    if(faltanMs<=0 || faltanMs>limite) return;
+    if(!Number.isFinite(faltanMs) || faltanMs<=0 || faltanMs>limite) return;
 
     const minutosTotales=Math.max(1,Math.floor(faltanMs/60000));
     const horas=Math.floor(minutosTotales/60);
     const minutos=minutosTotales%60;
-    const tiempo=horas>0
-      ? `${horas} hora${horas===1?"":"s"}${minutos?` y ${minutos} minuto${minutos===1?"":"s"}`:""}`
-      : `${minutos} minuto${minutos===1?"":"s"}`;
+    const tiempo=horas>0 ? `${horas} hora${horas===1?"":"s"}${minutos?` y ${minutos} minuto${minutos===1?"":"s"}`:""}` : `${minutos} minuto${minutos===1?"":"s"}`;
 
     const aviso=document.createElement("div");
     aviso.id="avisoPruebaShotTV";
     aviso.style.cssText="position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(0,0,0,.86);font-family:Arial,sans-serif;";
-    aviso.innerHTML=`
-      <div style="width:100%;max-width:430px;box-sizing:border-box;padding:24px 20px;border-radius:18px;background:#062332;border:1px solid #0b607a;color:#fff;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.55);">
-        <div style="font-size:40px;margin-bottom:8px;">⏰</div>
-        <h2 style="margin:0 0 12px;font-size:23px;">Tu prueba está por terminar</h2>
-        <p style="margin:0 0 12px;line-height:1.5;color:#d7e8ee;">Te quedan aproximadamente <strong>${tiempo}</strong> de acceso gratuito.</p>
-        <p style="margin:0 0 20px;line-height:1.5;color:#b9d0d9;">Suscríbete y continúa disfrutando de todo el contenido de Shot TV.</p>
-        <button id="suscribirseDesdePrueba" type="button" style="width:100%;padding:14px;border:0;border-radius:10px;background:#ff1231;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;">🎬 Continuar con mi suscripción · $35 al mes</button>
-        <button id="cerrarAvisoPrueba" type="button" style="margin-top:12px;border:0;background:transparent;color:#b9d0d9;font-size:14px;cursor:pointer;">Seguir disfrutando mi prueba</button>
-      </div>`;
+    aviso.innerHTML=`<div style="width:100%;max-width:430px;box-sizing:border-box;padding:24px 20px;border-radius:18px;background:#062332;border:1px solid #0b607a;color:#fff;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.55);">
+      <div style="font-size:40px;margin-bottom:8px;">⏰</div>
+      <h2 style="margin:0 0 12px;font-size:23px;">Tu prueba está por terminar</h2>
+      <p style="margin:0 0 12px;line-height:1.5;color:#d7e8ee;">Te quedan aproximadamente <strong>${tiempo}</strong> de acceso gratuito.</p>
+      <p style="margin:0 0 20px;line-height:1.5;color:#b9d0d9;">Suscríbete y continúa disfrutando de todo el contenido de Shot TV.</p>
+      <button id="suscribirseDesdePrueba" type="button" style="width:100%;padding:14px;border:0;border-radius:10px;background:#ff1231;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;">🎬 Continuar con mi suscripción · $35 al mes</button>
+      <button id="cerrarAvisoPrueba" type="button" style="margin-top:12px;border:0;background:transparent;color:#b9d0d9;font-size:14px;cursor:pointer;">Seguir disfrutando mi prueba</button>
+    </div>`;
     document.body.appendChild(aviso);
-
     document.getElementById("cerrarAvisoPrueba").onclick=()=>aviso.remove();
-    document.getElementById("suscribirseDesdePrueba").onclick=()=>{
-      aviso.remove();
-      if(typeof mostrarAvisoSuscripcion==="function") mostrarAvisoSuscripcion();
-    };
+    document.getElementById("suscribirseDesdePrueba").onclick=()=>{aviso.remove();if(typeof mostrarAvisoSuscripcion==="function")mostrarAvisoSuscripcion();};
   }catch(error){
-    console.warn("No se pudo mostrar el aviso de prueba:",error);
+    console.warn("Shot TV: error al verificar el aviso de prueba:",error);
   }
 }
 
-// La sesión de Shot TV puede restaurarse después de cargar el documento.
-// Por eso comprobamos varias veces durante los primeros segundos.
-document.addEventListener("DOMContentLoaded",()=>{
-  setTimeout(verificarAvisoPruebaShotTV,2000);
-  setTimeout(verificarAvisoPruebaShotTV,5000);
-  setTimeout(verificarAvisoPruebaShotTV,9000);
-});
+function iniciarVerificacionPruebaShotTV(){
+  setTimeout(verificarAvisoPruebaShotTV,800);
+  setTimeout(verificarAvisoPruebaShotTV,2500);
+  setTimeout(verificarAvisoPruebaShotTV,6000);
+}
