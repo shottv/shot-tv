@@ -73,7 +73,7 @@ function instalarMenuCuenta(){
   `;
   document.head.appendChild(estilo);
   const wrap=document.createElement('div'); wrap.id='shotTvCuentaWrap';
-  wrap.innerHTML=`<button id="shotTvCuentaBtn" type="button" aria-expanded="false">👤 Mi cuenta ▾</button>
+  wrap.innerHTML=`<button id="shotTvCuentaBtn" type="button" aria-expanded="false">🔐 Iniciar sesión</button>
     <div id="shotTvCuentaPanel" role="dialog" aria-label="Mi cuenta">
       <strong>Mi cuenta Shot TV</strong>
       <div class="cuenta-label">Correo electrónico</div><div class="cuenta-valor" id="shotTvCuentaCorreo">—</div>
@@ -84,6 +84,10 @@ function instalarMenuCuenta(){
   if(nav) nav.appendChild(wrap); else document.body.appendChild(wrap);
   const btn=document.getElementById('shotTvCuentaBtn'), panel=document.getElementById('shotTvCuentaPanel');
   btn.addEventListener('click',async()=>{
+    if(!usuario){
+      abrirAdministracion();
+      return;
+    }
     const abierto=panel.classList.toggle('abierto'); btn.setAttribute('aria-expanded',String(abierto));
     if(abierto) await actualizarPanelCuenta();
   });
@@ -96,7 +100,14 @@ function instalarMenuCuenta(){
 }
 function actualizarVisibilidadCuenta(){
   const wrap=document.getElementById('shotTvCuentaWrap'); if(!wrap) return;
-  wrap.style.display=usuario?'inline-flex':'none';
+  wrap.style.display='inline-flex';
+  const btn=document.getElementById('shotTvCuentaBtn');
+  if(btn){
+    btn.textContent=usuario?'👤 Mi cuenta ▾':'🔐 Iniciar sesión';
+    btn.setAttribute('aria-expanded','false');
+  }
+  const panel=document.getElementById('shotTvCuentaPanel');
+  if(panel && !usuario) panel.classList.remove('abierto');
   const correo=document.getElementById('shotTvCuentaCorreo'); if(correo) correo.textContent=usuario?.email||'—';
 }
 async function actualizarPanelCuenta(){
@@ -147,8 +158,8 @@ async function cargarPeliculas(){
   try{
     // En algunos navegadores de Smart TV una solicitud puede quedar esperando
     // indefinidamente. El tiempo máximo evita que la pantalla permanezca bloqueada.
-    const consulta=db.from("peliculas_catalogo")
-      .select("id,created_at,titulo,año,genero,portada,orden,destacada")
+    const consulta=db.from("peliculas")
+      .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
       .order("orden",{ascending:true,nullsFirst:false})
       .order("created_at",{ascending:true});
 
@@ -185,8 +196,8 @@ async function cargarNetflixVisto(){
   if(!estado || !grid) return;
 
   estado.textContent="Cargando películas...";
-  const {data,error}=await db.from("peliculas_catalogo")
-    .select("id,created_at,titulo,año,genero,portada,orden,destacada")
+  const {data,error}=await db.from("peliculas")
+    .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
     .eq("destacada",true)
     .order("orden",{ascending:true,nullsFirst:false})
     .order("created_at",{ascending:false});
@@ -2417,27 +2428,6 @@ async function abrir(id){
     return;
   }
 
-  // La URL del video se solicita únicamente después de validar el acceso.
-  // El catálogo público no recibe los enlaces de streaming.
-  const {data:videoProtegido,error:videoError}=await db.rpc("obtener_video_protegido",{
-    p_pelicula_id:Number(m.id)
-  });
-
-  if(videoError){
-    console.error("No se pudo obtener el video protegido:",videoError);
-    alert("No se pudo preparar la película. Verifica tu acceso e inténtalo nuevamente.");
-    return;
-  }
-
-  const urlProtegida=Array.isArray(videoProtegido)
-    ? videoProtegido[0]?.url
-    : videoProtegido?.url;
-
-  if(!urlProtegida){
-    alert("La película no está disponible en este momento.");
-    return;
-  }
-
   const {error}=await db.rpc("incrementar_vista",{
     p_pelicula_id:Number(m.id)
   });
@@ -2455,10 +2445,8 @@ async function abrir(id){
     });
   }
 
-  // Conservamos la URL solo en memoria después de que el acceso fue autorizado.
-  const peliculaParaReproducir={...m,url:urlProtegida};
-  peliculaActualParaCast=peliculaParaReproducir;
-  peliculaActualProgreso=peliculaParaReproducir;
+  peliculaActualParaCast=m;
+  peliculaActualProgreso=m;
   ultimoGuardadoProgreso=0;
   $("ptitulo").textContent=m.titulo;
   $("modal").classList.add("open");
@@ -2467,11 +2455,11 @@ async function abrir(id){
   // Recuperar el punto donde el usuario dejó la película.
   const progresoGuardado=await recuperarProgreso(m.id);
 
-  reproducirFuente(urlProtegida);
+  reproducirFuente(m.url);
 
   // YouTube no permite leer el minuto de reproducción con el iframe actual.
   // Para enlaces de video directos restauramos el progreso automáticamente.
-  const esYouTube=!!detectarYouTube(String(urlProtegida||""));
+  const esYouTube=!!detectarYouTube(String(m.url||""));
   if(!esYouTube && progresoGuardado>0){
     restaurarProgresoEnVideo(progresoGuardado);
   }
