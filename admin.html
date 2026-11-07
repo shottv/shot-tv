@@ -264,14 +264,33 @@
           if (sessionError) throw sessionError;
           if (!sessionData.session) throw new Error("INICIAR_SESION");
 
-          const { data: adminData, error: adminError } = await db
-            .from("admin_users")
-            .select("user_id")
-            .eq("user_id", sessionData.session.user.id)
-            .limit(1);
+          // Primero usamos la función de Supabase creada para verificar administradores.
+          // Esto permite validar el acceso aunque la tabla admin_users tenga RLS activado.
+          let autorizado = false;
 
-          if (adminError) throw adminError;
-          if (!adminData || adminData.length === 0) throw new Error("SIN_PERMISO");
+          try {
+            const { data: adminRpc, error: rpcError } = await db.rpc("is_admin");
+            if (!rpcError && adminRpc === true) {
+              autorizado = true;
+            }
+          } catch (e) {
+            console.warn("No se pudo verificar con is_admin:", e);
+          }
+
+          // Como respaldo, comprobamos directamente la tabla.
+          if (!autorizado) {
+            const { data: adminData, error: adminError } = await db
+              .from("admin_users")
+              .select("user_id")
+              .eq("user_id", sessionData.session.user.id)
+              .limit(1);
+
+            if (!adminError && adminData && adminData.length > 0) {
+              autorizado = true;
+            }
+          }
+
+          if (!autorizado) throw new Error("SIN_PERMISO");
 
           const [pruebasRes, suscripcionesRes, peliculasRes, topRes] = await Promise.all([
             db.from("shottv_pruebas").select("user_id", { count: "exact" }).eq("estado", "activa"),
