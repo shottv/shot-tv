@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administrador | Shot TV</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #03131d;
+      color: white;
+    }
+
+    header {
+      background: #061e2b;
+      padding: 16px 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #12394a;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .logo span {
+      color: #ff1744;
+    }
+
+    .volver {
+      color: white;
+      text-decoration: none;
+      background: #12394a;
+      padding: 10px 16px;
+      border-radius: 8px;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: auto;
+      padding: 30px 20px;
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    .subtitulo {
+      color: #9eb5c1;
+      margin-bottom: 30px;
+    }
+
+    .estadisticas {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      margin-bottom: 30px;
+    }
+
+    .tarjeta {
+      background: #082737;
+      border: 1px solid #12516a;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .tarjeta .icono {
+      font-size: 28px;
+    }
+
+    .tarjeta .numero {
+      font-size: 32px;
+      font-weight: bold;
+      margin: 12px 0 5px;
+    }
+
+    .tarjeta .texto {
+      color: #b4c8d1;
+    }
+
+    .seccion {
+      background: #082737;
+      border: 1px solid #12516a;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .peliculas-lista {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .pelicula {
+      background: #061e2b;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .pelicula img {
+      width: 100%;
+      height: 190px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .pelicula-info {
+      padding: 10px;
+    }
+
+    .pelicula-titulo {
+      font-weight: bold;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pelicula-vistas {
+      color: #8fc7dc;
+      font-size: 13px;
+      margin-top: 5px;
+    }
+
+    #mensaje {
+      text-align: center;
+      padding: 50px 20px;
+      color: #b4c8d1;
+    }
+
+    .error {
+      color: #ff8b8b !important;
+    }
+
+    @media (max-width: 850px) {
+      .estadisticas {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .peliculas-lista {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 500px) {
+      header {
+        padding: 14px;
+      }
+
+      main {
+        padding: 20px 14px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .tarjeta {
+        padding: 16px;
+      }
+
+      .tarjeta .numero {
+        font-size: 26px;
+      }
+
+      .pelicula img {
+        height: 210px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">▶ SHOT <span>TV</span></div>
+    <a href="index.html" class="volver">← Volver a Shot TV</a>
+  </header>
+
+  <main>
+    <h1>📊 Panel de Administrador</h1>
+    <p class="subtitulo">Resumen general de Shot TV.</p>
+
+    <div id="mensaje">⏳ Verificando acceso...</div>
+
+    <div id="contenido" style="display: none;">
+
+      <section class="estadisticas">
+
+        <div class="tarjeta">
+          <div class="icono">👥</div>
+          <div class="numero" id="usuarios">-</div>
+          <div class="texto">Usuarios registrados</div>
+        </div>
+
+        <div class="tarjeta">
+          <div class="icono">🎁</div>
+          <div class="numero" id="pruebas">-</div>
+          <div class="texto">Pruebas activas</div>
+        </div>
+
+        <div class="tarjeta">
+          <div class="icono">💳</div>
+          <div class="numero" id="suscripciones">-</div>
+          <div class="texto">Suscripciones activas</div>
+        </div>
+
+        <div class="tarjeta">
+          <div class="icono">🎬</div>
+          <div class="numero" id="peliculas">-</div>
+          <div class="texto">Películas en catálogo</div>
+        </div>
+
+      </section>
+
+      <section class="seccion">
+        <h2>🏆 Películas más vistas</h2>
+
+        <div id="peliculasMasVistas" class="peliculas-lista"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- IMPORTANTE: Reemplazaremos estas dos líneas con los datos
+       de conexión que ya utiliza tu proyecto. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    /*
+      PASO SIGUIENTE:
+      Aquí conectaremos esta página con tu mismo proyecto de Supabase.
+      No coloques todavía nuevas claves si no es necesario.
+    */
+  </script>
+
+</body>
+</html>
