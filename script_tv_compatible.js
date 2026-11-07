@@ -1,0 +1,2716 @@
+// Shot TV conectado a Supabase
+const SUPABASE_URL = "https://akpsjzcuimlwvehbammq.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
+
+let db = null;
+
+// Compatibilidad: evita que un navegador de Smart TV deje toda la aplicación
+// bloqueada si la biblioteca externa todavía no está disponible.
+if (window.supabase && typeof window.supabase.createClient === "function") {
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+} else {
+  const estadoInicial = document.getElementById("estado");
+  if (estadoInicial) {
+    estadoInicial.textContent = "No se pudo iniciar el catálogo. Verifica la conexión a internet y vuelve a cargar la página.";
+  }
+  console.error("Shot TV: la biblioteca de Supabase no se cargó correctamente.");
+}
+const $ = id => document.getElementById(id);
+let peliculas = [];
+
+// ❤️ Películas guardadas por el usuario en "Mi lista"
+let miListaIds = new Set();
+let miListaCargada = false;
+let usuario = null;
+let esAdmin = false;
+let peliculaEditando = null;
+let canalesEnVivo = [];
+let canalEditandoId = null;
+
+// Google Cast / Chromecast
+let peliculaActualParaCast = null;
+let castInicializado = false;
+
+// ▶️ Continuar viendo
+let peliculaActualProgreso = null;
+let ultimoGuardadoProgreso = 0;
+let restaurandoProgreso = false;
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+
+async function verificarRolAdministrador(){
+  if(!usuario){
+    esAdmin = false;
+    return false;
+  }
+  try{
+    const {data, error} = await db
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", usuario.id)
+      .limit(1);
+
+    if(!error && Array.isArray(data) && data.length > 0){
+      esAdmin = true;
+      return true;
+    }
+
+    const rpc = await db.rpc("is_admin");
+    esAdmin = !rpc.error && rpc.data === true;
+    return esAdmin;
+  }catch(error){
+    esAdmin = false;
+    console.warn("Error verificando administrador:", error);
+    return false;
+  }
+}
+
+// Menú de cuenta para clientes: muestra el correo, estado de suscripción y permite cerrar sesión.
+function instalarMenuCuenta(){
+  if(document.getElementById("shotTvCuentaBtn")) return;
+  const estilo=document.createElement("style");
+  estilo.id="shotTvCuentaEstilos";
+  estilo.textContent=`
+    #shotTvCuentaWrap{position:relative;display:inline-flex;align-items:center;margin-left:10px;z-index:1000;font-family:inherit}
+    #shotTvCuentaBtn{background:#10283a;color:#fff;border:1px solid #28465c;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600;white-space:nowrap}
+    #shotTvCuentaPanel{position:absolute;right:0;top:calc(100% + 9px);width:min(310px,calc(100vw - 28px));background:#071725;color:#fff;border:1px solid #29465a;border-radius:12px;padding:16px;box-shadow:0 12px 32px #0009;display:none}
+    #shotTvCuentaPanel.abierto{display:block}
+    #shotTvCuentaPanel .cuenta-label{color:#9bb5c8;font-size:12px;margin:10px 0 3px}
+    #shotTvCuentaPanel .cuenta-valor{overflow-wrap:anywhere;font-size:14px}
+    #shotTvCuentaEstado{margin-top:10px;padding:9px;border-radius:8px;background:#10283a;font-size:13px;line-height:1.4}
+    #shotTvCerrarSesion{width:100%;margin-top:14px;padding:10px;border:0;border-radius:8px;background:#c83d4d;color:white;font-weight:700;cursor:pointer}
+    @media(max-width:700px){#shotTvCuentaWrap{margin-left:4px}#shotTvCuentaBtn{padding:8px;font-size:12px}#shotTvCuentaPanel{right:0}}
+  `;
+  document.head.appendChild(estilo);
+  const wrap=document.createElement('div'); wrap.id='shotTvCuentaWrap';
+  wrap.innerHTML=`<button id="shotTvCuentaBtn" type="button" aria-expanded="false">👤 Mi cuenta ▾</button>
+    <div id="shotTvCuentaPanel" role="dialog" aria-label="Mi cuenta">
+      <strong>Mi cuenta Shot TV</strong>
+      <div class="cuenta-label">Correo electrónico</div><div class="cuenta-valor" id="shotTvCuentaCorreo">—</div>
+      <div class="cuenta-label">Estado de suscripción</div><div id="shotTvCuentaEstado">Consultando…</div>
+      <button id="shotTvCerrarSesion" type="button">Cerrar sesión</button>
+    </div>`;
+  const nav=document.querySelector('header nav') || document.querySelector('header') || document.querySelector('nav');
+  if(nav) nav.appendChild(wrap); else document.body.appendChild(wrap);
+  const btn=document.getElementById('shotTvCuentaBtn'), panel=document.getElementById('shotTvCuentaPanel');
+  btn.addEventListener('click',async()=>{
+    const abierto=panel.classList.toggle('abierto'); btn.setAttribute('aria-expanded',String(abierto));
+    if(abierto) await actualizarPanelCuenta();
+  });
+  document.addEventListener('click',e=>{if(!wrap.contains(e.target)){panel.classList.remove('abierto');btn.setAttribute('aria-expanded','false')}});
+  document.getElementById('shotTvCerrarSesion').addEventListener('click',async()=>{
+    const b=document.getElementById('shotTvCerrarSesion'); b.disabled=true; b.textContent='Cerrando sesión…';
+    await cerrarSesion(); panel.classList.remove('abierto'); b.disabled=false; b.textContent='Cerrar sesión'; actualizarVisibilidadCuenta();
+  });
+  actualizarVisibilidadCuenta();
+}
+function actualizarVisibilidadCuenta(){
+  const wrap=document.getElementById('shotTvCuentaWrap'); if(!wrap) return;
+  wrap.style.display=usuario?'inline-flex':'none';
+  const correo=document.getElementById('shotTvCuentaCorreo'); if(correo) correo.textContent=usuario?.email||'—';
+}
+async function actualizarPanelCuenta(){
+  const correo=document.getElementById('shotTvCuentaCorreo');
+  const estado=document.getElementById('shotTvCuentaEstado');
+  if(correo) correo.textContent=usuario?.email||'—';
+  if(!estado) return;
+  if(!usuario){estado.textContent='No has iniciado sesión.';return;}
+
+  estado.textContent='Consultando acceso…';
+  try{
+    const [suscripcionRes,pruebaRes]=await Promise.all([
+      db.from('shottv_suscripciones').select('estado,fecha_vencimiento').eq('user_id',usuario.id).eq('estado','activa').order('fecha_vencimiento',{ascending:false}).limit(1),
+      db.from('shottv_pruebas').select('estado,fecha_inicio,fecha_vencimiento').eq('user_id',usuario.id).order('fecha_vencimiento',{ascending:false}).limit(1)
+    ]);
+    if(suscripcionRes.error) throw suscripcionRes.error;
+
+    const suscripcion=(suscripcionRes.data||[])[0];
+    const prueba=(pruebaRes.data||[])[0];
+
+    if(suscripcion && new Date(suscripcion.fecha_vencimiento).getTime()>Date.now()){
+      const vence=new Date(suscripcion.fecha_vencimiento).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+      estado.textContent=`Suscripción activa · Vence el ${vence}`;
+      return;
+    }
+    if(prueba && prueba.estado==='activa' && new Date(prueba.fecha_vencimiento).getTime()>Date.now()){
+      const vence=new Date(prueba.fecha_vencimiento).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+      estado.textContent=`🎁 Prueba gratuita activa · Vence el ${vence}`;
+      return;
+    }
+    estado.textContent='Sin suscripción activa. Suscríbete para acceder al contenido.';
+  }catch(e){
+    console.warn('No se pudo consultar el estado de la cuenta:',e);
+    estado.textContent='No se pudo consultar el acceso en este momento.';
+  }
+}
+
+function mensaje(id, texto, error=false){
+  const el=$(id);
+  el.textContent=texto||"";
+  el.className="mensaje"+(error?" error":"");
+}
+
+async function cargarPeliculas(){
+  const estadoCatalogo = $("estado");
+  if(!db){
+    if(estadoCatalogo) estadoCatalogo.textContent="No se pudo conectar al catálogo. Verifica tu conexión y vuelve a cargar la página.";
+    return;
+  }
+  if(estadoCatalogo) estadoCatalogo.textContent="Cargando catálogo...";
+  const {data,error}=await db.from("peliculas")
+    .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:true});
+  if(error){
+    console.error(error);
+    $("estado").textContent="No se pudo cargar el catálogo.";
+    return;
+  }
+  peliculas=data||[];
+  render();
+  await cargarNetflixVisto();
+}
+
+async function cargarNetflixVisto(){
+  const estado=$("netflixEstado");
+  const grid=$("netflixGrid");
+  if(!estado || !grid) return;
+
+  estado.textContent="Cargando películas...";
+  const {data,error}=await db.from("peliculas")
+    .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
+    .eq("destacada",true)
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:false});
+
+  if(error){
+    console.error(error);
+    estado.textContent="No se pudieron cargar las películas.";
+    return;
+  }
+
+  const lista=data||[];
+  estado.textContent=lista.length ? "" : "Aún no hay películas seleccionadas.";
+  grid.innerHTML=lista.map(m=>`
+    <article class="card" style="position:relative;" onclick="abrir(${Number(m.id)})">
+      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
+      <div class="info">
+        <h3>${esc(m.titulo)}</h3>
+        <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
+      </div>
+    </article>`).join("");
+}
+
+async function cargarMiLista(){
+  miListaIds = new Set();
+  miListaCargada = true;
+
+  if(!usuario) return;
+
+  const {data,error} = await db
+    .from("shottv_mi_lista")
+    .select("pelicula_id")
+    .eq("user_id", usuario.id);
+
+  if(error){
+    console.error("Error al cargar Mi lista:", error);
+    return;
+  }
+
+  miListaIds = new Set((data||[]).map(x=>Number(x.pelicula_id)));
+}
+
+async function alternarMiLista(id, event){
+  if(event){
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  if(!usuario){
+    alert("Inicia sesión para guardar películas en Mi lista.");
+    return;
+  }
+
+  const peliculaId = Number(id);
+  const guardada = miListaIds.has(peliculaId);
+
+  try{
+    if(guardada){
+      const {error} = await db
+        .from("shottv_mi_lista")
+        .delete()
+        .eq("user_id", usuario.id)
+        .eq("pelicula_id", peliculaId);
+      if(error) throw error;
+      miListaIds.delete(peliculaId);
+    }else{
+      const {error} = await db
+        .from("shottv_mi_lista")
+        .insert({user_id: usuario.id, pelicula_id: peliculaId});
+      if(error) throw error;
+      miListaIds.add(peliculaId);
+    }
+
+    render();
+    actualizarBotonMiLista();
+  }catch(error){
+    console.error(error);
+    alert("No se pudo actualizar Mi lista: " + (error.message||"Intenta nuevamente."));
+  }
+}
+
+function mostrarMiLista(){
+  if(!usuario){
+    alert("Inicia sesión para ver Mi lista.");
+    return;
+  }
+
+  const guardadas = peliculas.filter(m=>miListaIds.has(Number(m.id)));
+
+  let panel = document.getElementById("miListaPanel");
+  if(!panel){
+    panel = document.createElement("div");
+    panel.id = "miListaPanel";
+    panel.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:10000;overflow:auto;padding:30px 15px;";
+    document.body.appendChild(panel);
+  }
+
+  panel.innerHTML = `
+    <div style="max-width:1000px;margin:auto;background:#061b27;border:1px solid #14546b;border-radius:14px;padding:20px;color:#fff;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:18px;">
+        <h2 style="margin:0;">❤️ Mi lista</h2>
+        <button type="button" onclick="cerrarMiLista()" style="background:#e50914;color:#fff;border:0;border-radius:7px;padding:9px 14px;font-weight:bold;cursor:pointer;">Cerrar</button>
+      </div>
+      ${guardadas.length ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;">
+          ${guardadas.map(m=>`
+            <div style="cursor:pointer;" onclick="cerrarMiLista();abrir(${Number(m.id)})">
+              <img src="${esc(m.portada)}" alt="${esc(m.titulo)}" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;">
+              <div style="font-weight:bold;margin-top:6px;">${esc(m.titulo)}</div>
+              <button type="button" onclick="alternarMiLista(${Number(m.id)},event);mostrarMiLista();" style="margin-top:6px;width:100%;background:#243846;color:#fff;border:0;border-radius:6px;padding:7px;cursor:pointer;">💔 Quitar</button>
+            </div>
+          `).join("")}
+        </div>` :
+        `<div style="text-align:center;padding:35px 10px;color:#c8d8df;">Aún no tienes películas guardadas.<br><br>Presiona ❤️ en cualquier película para agregarla a Mi lista.</div>`
+      }
+    </div>`;
+  panel.style.display = "block";
+}
+
+function cerrarMiLista(){
+  const panel = document.getElementById("miListaPanel");
+  if(panel) panel.style.display = "none";
+}
+
+function crearBotonMiLista(){
+  if(document.getElementById("btnMiLista")) return;
+
+  const btn = document.createElement("button");
+  btn.id = "btnMiLista";
+  btn.type = "button";
+  btn.textContent = "❤️ Mi lista";
+  btn.title = "Ver películas guardadas";
+  btn.onclick = mostrarMiLista;
+  btn.style.cssText = "position:fixed;right:18px;bottom:82px;z-index:9998;background:#e50914;color:#fff;border:0;border-radius:22px;padding:9px 14px;font-weight:bold;box-shadow:0 3px 12px rgba(0,0,0,.35);cursor:pointer;font-size:13px;";
+  document.body.appendChild(btn);
+  actualizarBotonMiLista();
+}
+
+function actualizarBotonMiLista(){
+  const btn = document.getElementById("btnMiLista");
+  if(btn) btn.style.display = usuario ? "block" : "none";
+}
+
+async function guardarProgresoActual(forzar=false){
+  const video=$("player");
+  const pelicula=peliculaActualProgreso;
+
+  if(!usuario || !pelicula || !video || restaurandoProgreso) return;
+  if(!Number.isFinite(video.currentTime) || video.currentTime < 5) return;
+
+  const ahora=Date.now();
+  if(!forzar && ahora-ultimoGuardadoProgreso < 15000) return;
+  ultimoGuardadoProgreso=ahora;
+
+  // Si faltan pocos segundos para terminar, eliminamos la película de "Continuar viendo".
+  const termino=Number(video.duration);
+  if(Number.isFinite(termino) && termino>0 && video.currentTime >= termino-30){
+    const {error}=await db.from("shottv_continuar_viendo")
+      .delete()
+      .eq("user_id",usuario.id)
+      .eq("pelicula_id",Number(pelicula.id));
+    if(error) console.warn("No se pudo eliminar el progreso terminado:",error);
+    return;
+  }
+
+  const {error}=await db.from("shottv_continuar_viendo").upsert({
+    user_id:usuario.id,
+    pelicula_id:Number(pelicula.id),
+    progreso:Number(video.currentTime.toFixed(1)),
+    actualizado_en:new Date().toISOString()
+  },{onConflict:"user_id,pelicula_id"});
+
+  if(error) console.warn("No se pudo guardar el progreso:",error);
+}
+
+async function recuperarProgreso(peliculaId){
+  if(!usuario) return 0;
+
+  const {data,error}=await db
+    .from("shottv_continuar_viendo")
+    .select("progreso")
+    .eq("user_id",usuario.id)
+    .eq("pelicula_id",Number(peliculaId))
+    .maybeSingle();
+
+  if(error){
+    console.warn("No se pudo recuperar el progreso:",error);
+    return 0;
+  }
+  return Number(data?.progreso||0);
+}
+
+function crearSeccionContinuarViendo(){
+  let seccion=document.getElementById("continuarViendo");
+  if(seccion) return seccion;
+
+  seccion=document.createElement("section");
+  seccion.id="continuarViendo";
+  seccion.style.cssText="display:none;margin:20px 0 28px;padding:16px;background:#062d3a;border-radius:12px;color:#fff;box-sizing:border-box;width:100%;min-width:0;overflow:hidden;";
+
+  const grid=$("grid");
+  if(grid && grid.parentElement){
+    grid.parentElement.insertBefore(seccion,grid);
+  }
+  return seccion;
+}
+
+async function cargarContinuarViendo(){
+  const seccion=crearSeccionContinuarViendo();
+  if(!seccion) return;
+
+  if(!usuario){
+    seccion.style.display="none";
+    return;
+  }
+
+  const {data,error}=await db
+    .from("shottv_continuar_viendo")
+    .select("pelicula_id,progreso,actualizado_en")
+    .eq("user_id",usuario.id)
+    .order("actualizado_en",{ascending:false})
+    .limit(12);
+
+  if(error){
+    console.warn("No se pudo cargar Continuar viendo:",error);
+    seccion.style.display="none";
+    return;
+  }
+
+  const items=(data||[]).map(r=>{
+    const pelicula=peliculas.find(p=>Number(p.id)===Number(r.pelicula_id));
+    return pelicula ? {...pelicula,__progreso:Number(r.progreso||0)} : null;
+  }).filter(Boolean);
+
+  if(!items.length){
+    seccion.style.display="none";
+    return;
+  }
+
+  seccion.style.display="block";
+  seccion.innerHTML=`
+    <h2 style="margin:0 0 14px;font-size:22px;">▶️ Continuar viendo</h2>
+    <div class="continuar-viendo-fila" style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;max-width:100%;min-width:0;">
+      ${items.map(m=>`
+        <button type="button" onclick="abrir(${Number(m.id)})" style="position:relative;flex:0 0 145px;min-width:145px;border:0;background:transparent;color:#fff;text-align:left;padding:0;cursor:pointer;">
+          <img src="${esc(m.portada)}" alt="${esc(m.titulo)}" style="width:145px;height:210px;max-width:100%;object-fit:cover;border-radius:8px;display:block;">
+          <span style="display:block;font-weight:bold;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.titulo)}</span>
+          <span style="display:block;color:#b8d2df;font-size:12px;margin-top:3px;">▶ Continuar desde ${Math.floor(m.__progreso/60)}:${String(Math.floor(m.__progreso%60)).padStart(2,"0")}</span>
+        </button>
+      `).join("")}
+    </div>`;
+}
+
+async function restaurarProgresoEnVideo(progreso){
+  const video=$("player");
+  if(!video || !progreso || progreso<5) return;
+
+  const aplicar=()=>{
+    if(!Number.isFinite(video.duration) || video.duration<=0) return;
+    const destino=Math.min(progreso,Math.max(0,video.duration-5));
+    if(destino>0){
+      restaurandoProgreso=true;
+      try{ video.currentTime=destino; }catch(e){ console.warn("No se pudo restaurar el progreso:",e); }
+      setTimeout(()=>{restaurandoProgreso=false;},500);
+    }
+  };
+
+  if(video.readyState>=1) aplicar();
+  else video.addEventListener("loadedmetadata",aplicar,{once:true});
+}
+
+function render(){
+  const q=$("buscar").value.toLowerCase().trim();
+  const lista=peliculas.filter(m=>String(m.titulo||"").toLowerCase().includes(q));
+
+  // Mostrar un mensaje más claro al realizar una búsqueda.
+  if(q){
+    $("estado").textContent=lista.length
+      ? `🔎 Resultados para: "${$("buscar").value.trim()}"`
+      : `🔎 No encontramos películas con "${$("buscar").value.trim()}".`;
+  }else{
+    $("estado").textContent=lista.length ? "" : "No hay películas para mostrar.";
+  }
+
+  $("grid").innerHTML=lista.map(m=>`
+    <article class="card" onclick="abrir(${Number(m.id)})">
+      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
+      <div class="info">
+        <h3>${esc(m.titulo)}</h3>
+        <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
+      </div>
+      <button type="button" onclick="alternarMiLista(${Number(m.id)},event)" title="${miListaIds.has(Number(m.id)) ? "Quitar de Mi lista" : "Agregar a Mi lista"}" style="position:absolute;top:8px;right:8px;z-index:3;border:0;border-radius:50%;width:34px;height:34px;background:rgba(0,0,0,.72);color:#fff;font-size:18px;cursor:pointer;">${miListaIds.has(Number(m.id)) ? "❤️" : "🤍"}</button>
+      ${esAdmin?`<div class="card-actions" onclick="event.stopPropagation();">
+        <button class="move move-first" type="button" onclick="moverPelicula(${Number(m.id)}, -2)" title="Enviar al principio">⏫ Inicio</button>
+        <button class="move move-up" type="button" onclick="moverPelicula(${Number(m.id)}, -1)" title="Subir una posición">⬆️ Subir</button>
+        <button class="move move-down" type="button" onclick="moverPelicula(${Number(m.id)}, 1)" title="Bajar una posición">⬇️ Bajar</button>
+        <button class="move move-last" type="button" onclick="moverPelicula(${Number(m.id)}, 2)" title="Enviar al final">⏬ Final</button>
+        <button class="edit" onclick="editar(${Number(m.id)})">Editar</button>
+        <button class="delete" onclick="eliminar(${Number(m.id)})">Eliminar</button>
+      </div>`:""}
+    </article>`).join("");
+}
+
+function mostrarAdmin(){
+  const loginBox = $("loginBox");
+  const adminPanel = $("adminPanel");
+  const adminSection = $("admin");
+
+  // Mostrar SOLO una de las dos vistas: login o panel de administrador.
+  if(esAdmin){
+    loginBox.hidden = true;
+    loginBox.classList.add("hidden");
+    adminPanel.hidden = false;
+    adminPanel.classList.remove("hidden");
+  }else{
+    loginBox.hidden = false;
+    loginBox.classList.remove("hidden");
+    adminPanel.hidden = true;
+    adminPanel.classList.add("hidden");
+  }
+  render();
+  if(esAdmin){ cargarPublicidadAdmin(); cargarNegociosAdmin(); cargarControlSolicitudes(); cargarCanalesAdmin(); }
+}
+
+function escSolicitud(v){
+  return esc(v==null?"":String(v));
+}
+
+function fechaSolicitud(v){
+  if(!v)return "";
+  try{return new Date(v).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"});}
+  catch{return String(v);}
+}
+
+function etiquetaEstado(estado){
+  return ({pendiente:"⏳ Pendiente",revision:"🔵 En revisión",aprobado:"🟢 Aprobado",rechazado:"🔴 Rechazado",publicado:"🟣 Publicado"})[estado]||estado;
+}
+
+async function cargarControlSolicitudes(){
+  if(!usuario || !esAdmin)return;
+  const msg=$("solicitudesAdminMsg");
+  try{
+    const [solRes,negRes]=await Promise.all([
+      db.from("solicitudes_negocios").select("*").order("created_at",{ascending:false}),
+      db.from("negocios").select("id",{count:"exact",head:true})
+    ]);
+    if(solRes.error)throw solRes.error;
+    if(negRes.error)throw negRes.error;
+    const solicitudes=solRes.data||[];
+    const conteo={pendiente:0,revision:0,aprobado:0,rechazado:0,publicado:0};
+    solicitudes.forEach(x=>{if(conteo[x.estado]!==undefined)conteo[x.estado]++;});
+    $("statSolicitudes").textContent=solicitudes.length;
+    $("statPendientes").textContent=conteo.pendiente;
+    $("statRevision").textContent=conteo.revision;
+    $("statAprobados").textContent=conteo.aprobado;
+    $("statPublicados").textContent=conteo.publicado;
+    $("statNegocios").textContent=negRes.count??0;
+    if(!solicitudes.length){
+      $("solicitudesAdminLista").innerHTML='<div class="solicitud-empty">Todavía no hay solicitudes de negocios.</div>';
+      if(msg)msg.textContent="";
+      return;
+    }
+    $("solicitudesAdminLista").innerHTML=solicitudes.map(s=>`
+      <div class="solicitud-admin-row">
+        <div class="solicitud-admin-main">
+          <strong class="solicitud-registro">${escSolicitud(s.numero_registro)}</strong>
+          <strong>${escSolicitud(s.nombre)}</strong>
+          <span>${escSolicitud(s.categoria)}</span>
+          <span>📅 ${escSolicitud(fechaSolicitud(s.created_at))}</span>
+          <select class="solicitud-estado" data-solicitud-id="${escSolicitud(s.id)}" aria-label="Estado de la solicitud ${escSolicitud(s.numero_registro)}">
+            <option value="pendiente" ${s.estado==="pendiente"?"selected":""}>⏳ Pendiente</option>
+            <option value="revision" ${s.estado==="revision"?"selected":""}>🔵 En revisión</option>
+            <option value="aprobado" ${s.estado==="aprobado"?"selected":""}>🟢 Aprobado</option>
+            <option value="rechazado" ${s.estado==="rechazado"?"selected":""}>🔴 Rechazado</option>
+            <option value="publicado" ${s.estado==="publicado"?"selected":""}>🟣 Publicado</option>
+          </select>
+        </div>
+        <div class="solicitud-detalle">
+          <span><b>Descripción:</b> ${escSolicitud(s.descripcion||"No proporcionada")}</span>
+          <span><b>Dirección:</b> ${escSolicitud(s.direccion||"No proporcionada")}</span>
+          <span><b>Teléfono:</b> ${escSolicitud(s.telefono||"No proporcionado")}</span>
+          <span><b>WhatsApp:</b> ${escSolicitud(s.whatsapp||"No proporcionado")}</span>
+          <span><b>Horario:</b> ${escSolicitud(s.horario||"No proporcionado")}</span>
+          <span><b>Facebook:</b> ${escSolicitud(s.facebook||"No proporcionado")}</span>
+          <span><b>Instagram:</b> ${escSolicitud(s.instagram||"No proporcionado")}</span>
+          <span><b>Sitio web:</b> ${escSolicitud(s.sitio_web||"No proporcionado")}</span>
+          <span><b>Google Maps:</b> ${escSolicitud(s.mapa||"No proporcionado")}</span>
+        </div>
+      </div>`).join("");
+    document.querySelectorAll(".solicitud-estado").forEach(sel=>{
+      sel.onchange=()=>actualizarEstadoSolicitud(sel.dataset.solicitudId,sel.value);
+    });
+    if(msg)msg.textContent="";
+  }catch(error){
+    console.error("Error cargando solicitudes:",error);
+    if(msg)mensaje("solicitudesAdminMsg","No se pudieron cargar las solicitudes: "+error.message,true);
+  }
+}
+
+async function actualizarEstadoSolicitud(id,estado){
+  if(!usuario || !esAdmin)return;
+  const msg=$("solicitudesAdminMsg");
+  const {error}=await db.from("solicitudes_negocios").update({estado}).eq("id",id);
+  if(error){
+    console.error(error);
+    mensaje("solicitudesAdminMsg","No se pudo actualizar el estado: "+error.message,true);
+    await cargarControlSolicitudes();
+    return;
+  }
+  mensaje("solicitudesAdminMsg",`Estado actualizado: ${etiquetaEstado(estado)}`);
+  await cargarControlSolicitudes();
+}
+
+function abrirAdministracion(e){
+  if(e) e.preventDefault();
+  const adminSection=$("admin");
+  adminSection.classList.remove("hidden");
+  mostrarAdmin();
+  // No dejamos #admin en la URL: así al recargar o cerrar sesión el cliente
+  // siempre vuelve al inicio público y nunca aterriza en el panel de acceso.
+  history.replaceState(null,"",location.pathname+location.search);
+  adminSection.scrollIntoView({behavior:"smooth",block:"start"});
+  setTimeout(()=>{
+    if(!usuario) $("loginEmail").focus();
+  },250);
+}
+
+async function iniciarSesion(){
+  const email=$("loginEmail").value.trim();
+  const password=$("loginPassword").value;
+  if(!email||!password){
+    mensaje("loginMsg","Escribe correo y contraseña.",true);
+    return;
+  }
+  $("loginBtn").disabled=true;
+  mensaje("loginMsg","Iniciando sesión...");
+  const {data,error}=await db.auth.signInWithPassword({email,password});
+  $("loginBtn").disabled=false;
+  if(error){
+    mensaje("loginMsg","Correo o contraseña incorrectos.",true);
+    return;
+  }
+  usuario=data.user;
+  $("loginPassword").value="";
+  mensaje("loginMsg","");
+  mostrarAdmin();
+  abrirAdministracion();
+}
+
+async function cerrarSesion(){
+  await db.auth.signOut();
+  usuario=null;
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.remove("hidden");
+  $("negocios").classList.add("hidden");
+  $("enVivo").classList.add("hidden");
+  $("buscar").classList.remove("hidden");
+  history.replaceState(null,"",location.pathname+location.search);
+  mostrarAdmin();
+  requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
+}
+
+function nombreArchivoSeguro(nombre){
+  const base=nombre.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9._-]+/g,"-").replace(/^-+|-+$/g,"");
+  return base||"poster";
+}
+
+async function agregarPelicula(){
+  // Evita guardar por error un canal usando el botón de películas.
+  const canalNombreIngresado=$("canalNombre")?.value.trim()||"";
+  const canalUrlIngresada=$("canalUrl")?.value.trim()||"";
+  if(canalNombreIngresado || canalUrlIngresada){
+    mensaje("adminMsg","Tienes datos en el formulario de En vivo. Pulsa 📺 GUARDAR EN EN VIVO dentro de ese apartado; no uses AGREGAR PELÍCULA.",true);
+    return;
+  }
+  if(!usuario || !esAdmin){
+    mensaje("adminMsg","Debes iniciar sesión.",true);
+    return;
+  }
+  const titulo=$("titulo").value.trim();
+  const anio=Number($("anio").value)||null;
+  const genero=$("genero").value.trim()||"Sin género";
+  const url=$("url").value.trim();
+  const file=$("portada").files[0];
+
+  if(!titulo||!url||!file){
+    mensaje("adminMsg","Completa título, portada y Direct Link (streaming).",true);
+    return;
+  }
+  if(!/^https?:\/\//i.test(url)){
+    mensaje("adminMsg","El enlace de streaming no parece una URL válida.",true);
+    return;
+  }
+  if(!file.type.startsWith("image/")){
+    mensaje("adminMsg","La portada debe ser una imagen.",true);
+    return;
+  }
+
+  const btn=$("agregar");
+  btn.disabled=true;
+  mensaje("adminMsg","Subiendo portada y guardando película...");
+
+  const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+  const path=`${crypto.randomUUID()}-${nombreArchivoSeguro(file.name)}.${ext}`;
+
+  const upload=await db.storage.from("posters").upload(path,file,{cacheControl:"3600",upsert:false});
+  if(upload.error){
+    console.error(upload.error);
+    btn.disabled=false;
+    mensaje("adminMsg","No se pudo subir la portada: "+upload.error.message,true);
+    return;
+  }
+
+  const {data:publicData}=db.storage.from("posters").getPublicUrl(path);
+  const portada=publicData.publicUrl;
+
+  const ponerPrimero = $("ponerPrimero").checked;
+  const destacada = !!$("destacada")?.checked;
+
+  // Si se coloca al principio, usamos un orden menor que el actual.
+  // Así no tenemos que actualizar todas las películas existentes.
+  const ordenNumerico = peliculas
+    .map(m => Number(m.orden))
+    .filter(n => Number.isFinite(n));
+  const minOrden = ordenNumerico.length ? Math.min(...ordenNumerico) : 1;
+  const maxOrden = ordenNumerico.length ? Math.max(...ordenNumerico) : 0;
+  const nuevoOrden = ponerPrimero ? minOrden - 1 : maxOrden + 1;
+
+  const {error}=await db.from("peliculas").insert({
+    titulo,
+    "año":anio,
+    genero,
+    portada,
+    url,
+    orden:nuevoOrden,
+    destacada
+  });
+
+  if(error){
+    await db.storage.from("posters").remove([path]);
+    console.error(error);
+    btn.disabled=false;
+    mensaje("adminMsg","No se pudo guardar la película: "+error.message,true);
+    return;
+  }
+
+  $("titulo").value="";
+  $("anio").value="2026";
+  $("genero").value="";
+  $("portada").value="";
+  $("url").value="";
+  $("ponerPrimero").checked=true;
+  if($("destacada")) $("destacada").checked=false;
+  btn.disabled=false;
+  mensaje("adminMsg","Película agregada correctamente. 🎬");
+  await cargarPeliculas();
+}
+
+async function moverPelicula(id, direccion){
+  if(!usuario || !esAdmin){alert("Debes iniciar sesión para cambiar el orden.");return;}
+
+  const scrollY=window.scrollY;
+  const scrollX=window.scrollX;
+  const {data,error}=await db.from("peliculas")
+    .select("id,titulo,orden,created_at")
+    .order("orden",{ascending:true,nullsFirst:false})
+    .order("created_at",{ascending:true});
+
+  if(error){
+    alert("No se pudo consultar el orden de las películas: "+error.message);
+    return;
+  }
+
+  const lista=(data||[]).slice().sort((a,b)=>{
+    const ao=Number(a.orden), bo=Number(b.orden);
+    if(Number.isFinite(ao)&&Number.isFinite(bo)&&ao!==bo)return ao-bo;
+    if(Number.isFinite(ao)!==Number.isFinite(bo))return Number.isFinite(ao)?-1:1;
+    return new Date(a.created_at).getTime()-new Date(b.created_at).getTime();
+  });
+
+  const indice=lista.findIndex(m=>Number(m.id)===Number(id));
+  if(indice<0){alert("No se encontró la película seleccionada.");return;}
+
+  // -2 = enviar al principio; +2 = enviar al final.
+  // -1/+1 = mover una posición.
+  if(Number(direccion)===-2 || Number(direccion)===2){
+    const ordenes=lista.map(m=>Number(m.orden)).filter(Number.isFinite);
+    const minOrden=ordenes.length?Math.min(...ordenes):0;
+    const maxOrden=ordenes.length?Math.max(...ordenes):0;
+    const nuevoOrden=Number(direccion)===-2 ? minOrden-1 : maxOrden+1;
+    const {error:e}=await db.from("peliculas").update({orden:nuevoOrden}).eq("id",id);
+    if(e){
+      alert("No se pudo cambiar la posición: "+e.message);
+      return;
+    }
+  }else{
+    const nuevoIndice=indice+Number(direccion);
+    if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
+    const actual=lista[indice];
+    const vecino=lista[nuevoIndice];
+    const ordenActual=Number(actual.orden);
+    const ordenVecino=Number(vecino.orden);
+
+    // Solo 3 actualizaciones: temporal, intercambio y limpieza.
+    // La columna "orden" es INTEGER en PostgreSQL, por lo que NO usamos
+    // Date.now() como valor temporal (ese número excede el límite de INTEGER).
+    // Elegimos un entero negativo pequeño que no esté ocupado.
+    const ordenesExistentes=new Set(
+      lista
+        .map(m=>Number(m.orden))
+        .filter(Number.isInteger)
+    );
+    let tempOrden=-1;
+    while(ordenesExistentes.has(tempOrden)) tempOrden--;
+
+    const {error:e1}=await db.from("peliculas").update({orden:tempOrden}).eq("id",actual.id);
+    if(e1){alert("No se pudo preparar el cambio: "+e1.message);return;}
+
+    const {error:e2}=await db.from("peliculas").update({orden:ordenActual}).eq("id",vecino.id);
+    if(e2){
+      await db.from("peliculas").update({orden:ordenActual}).eq("id",actual.id);
+      alert("No se pudo cambiar la posición: "+e2.message);
+      return;
+    }
+
+    const {error:e3}=await db.from("peliculas").update({orden:ordenVecino}).eq("id",actual.id);
+    if(e3){
+      alert("No se pudo finalizar el cambio de posición: "+e3.message);
+      return;
+    }
+  }
+
+  await cargarPeliculas();
+  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:scrollX,behavior:"auto"}));
+}
+
+async function eliminar(id){
+  if(!usuario || !esAdmin)return;
+  const pelicula=peliculas.find(m=>Number(m.id)===Number(id));
+  if(!pelicula)return;
+  if(!confirm(`¿Eliminar "${pelicula.titulo}"?`))return;
+
+  const {error}=await db.from("peliculas").delete().eq("id",id);
+  if(error){
+    alert("No se pudo eliminar la película: "+error.message);
+    return;
+  }
+
+  // Intentar borrar también la portada de Storage.
+  try{
+    const marker="/storage/v1/object/public/posters/";
+    const pos=String(pelicula.portada||"").indexOf(marker);
+    if(pos>=0){
+      const path=decodeURIComponent(String(pelicula.portada).slice(pos+marker.length));
+      if(path) await db.storage.from("posters").remove([path]);
+    }
+  }catch(e){ console.warn("No se pudo limpiar la portada:",e); }
+
+  await cargarPeliculas();
+}
+
+
+function cerrarEdicion(){
+  peliculaEditando=null;
+  $("editModal").classList.remove("open");
+  $("editPortada").value="";
+  mensaje("editMsg","");
+}
+
+function editar(id){
+  if(!usuario || !esAdmin)return;
+  const m=peliculas.find(x=>Number(x.id)===Number(id));
+  if(!m)return;
+  peliculaEditando=m;
+  $("editTitulo").value=m.titulo||"";
+  $("editAnio").value=m.año||"";
+  $("editGenero").value=m.genero||"";
+  $("editUrl").value=m.url||"";
+  if($("editDestacada")) $("editDestacada").checked=!!m.destacada;
+  $("editPortada").value="";
+  mensaje("editMsg","");
+  $("editModal").classList.add("open");
+}
+
+async function guardarEdicion(){
+  if(!usuario||!peliculaEditando)return;
+  const titulo=$("editTitulo").value.trim();
+  const anio=Number($("editAnio").value)||null;
+  const genero=$("editGenero").value.trim()||"Sin género";
+  const url=$("editUrl").value.trim();
+  const file=$("editPortada").files[0];
+  const destacada=!!$("editDestacada")?.checked;
+  if(!titulo||!url){
+    mensaje("editMsg","Completa título y Direct Link (streaming).",true);
+    return;
+  }
+  if(!/^https?:\/\//i.test(url)){
+    mensaje("editMsg","El enlace de streaming no parece una URL válida.",true);
+    return;
+  }
+  const btn=$("guardarEdicion");
+  btn.disabled=true;
+  mensaje("editMsg","Guardando cambios...");
+  let nuevaPortada=peliculaEditando.portada;
+  let nuevoPath=null;
+  if(file){
+    if(!file.type.startsWith("image/")){
+      btn.disabled=false;
+      mensaje("editMsg","La portada debe ser una imagen.",true);
+      return;
+    }
+    const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+    nuevoPath=`${crypto.randomUUID()}-${nombreArchivoSeguro(file.name)}.${ext}`;
+    const upload=await db.storage.from("posters").upload(nuevoPath,file,{cacheControl:"3600",upsert:false});
+    if(upload.error){
+      console.error(upload.error);
+      btn.disabled=false;
+      mensaje("editMsg","No se pudo subir la nueva portada: "+upload.error.message,true);
+      return;
+    }
+    nuevaPortada=db.storage.from("posters").getPublicUrl(nuevoPath).data.publicUrl;
+  }
+
+  const {error}=await db.from("peliculas").update({titulo,"año":anio,genero,url,portada:nuevaPortada,destacada}).eq("id",peliculaEditando.id);
+  if(error){
+    if(nuevoPath) await db.storage.from("posters").remove([nuevoPath]);
+    console.error(error);
+    btn.disabled=false;
+    mensaje("editMsg","No se pudieron guardar los cambios: "+error.message,true);
+    return;
+  }
+
+  if(file && peliculaEditando.portada){
+    try{
+      const marker="/storage/v1/object/public/posters/";
+      const pos=String(peliculaEditando.portada).indexOf(marker);
+      if(pos>=0){
+        const oldPath=decodeURIComponent(String(peliculaEditando.portada).slice(pos+marker.length));
+        if(oldPath) await db.storage.from("posters").remove([oldPath]);
+      }
+    }catch(e){ console.warn("No se pudo limpiar la portada anterior:",e); }
+  }
+  btn.disabled=false;
+  cerrarEdicion();
+  await cargarPeliculas();
+}
+
+async function cargarPublicidad(){
+  const banner=$("adBanner");
+  const {data,error}=await db.from("ads").select("id,imagen,enlace,activo,created_at").eq("activo",true).order("created_at",{ascending:false}).limit(1);
+  if(error){
+    console.warn("No se pudo cargar publicidad:",error);
+    banner.innerHTML="<span>PUBLICIDAD</span>"; banner.onclick=null; banner.style.cursor="default"; return;
+  }
+  const ad=data?.[0];
+  if(!ad){ banner.innerHTML="<span>PUBLICIDAD</span>"; banner.onclick=null; banner.style.cursor="default"; return; }
+  banner.innerHTML=`<img src="${esc(ad.imagen)}" alt="Publicidad">`;
+  banner.style.cursor=ad.enlace?"pointer":"default";
+  banner.onclick=()=>{ if(ad.enlace) window.open(ad.enlace,"_blank","noopener,noreferrer"); };
+}
+
+async function cargarPublicidadAdmin(){
+  if(!usuario || !esAdmin)return;
+  const {data,error}=await db.from("ads").select("id,imagen,enlace,activo,created_at").order("created_at",{ascending:false}).limit(1);
+  const box=$("adActual");
+  if(error){ box.textContent="No se pudo consultar la publicidad."; return; }
+  const ad=data?.[0];
+  if(!ad){ box.innerHTML='<span class="ad-empty">No hay publicidad configurada.</span>'; return; }
+  $("adLink").value=ad.enlace||""; $("adActivo").checked=!!ad.activo;
+  box.innerHTML=`<div class="ad-preview"><div><strong>Publicidad actual</strong><span>${ad.activo?"ACTIVA":"INACTIVA"}</span></div><img src="${esc(ad.imagen)}" alt="Publicidad actual"><button id="eliminarAd" class="delete-ad">ELIMINAR PUBLICIDAD</button></div>`;
+  $("eliminarAd").onclick=()=>eliminarPublicidad(ad);
+}
+
+function nombreArchivoAd(nombre){
+  return nombre.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9._-]+/g,"-").replace(/^-+|-+$/g,"")||"banner";
+}
+
+async function guardarPublicidad(){
+  if(!usuario || !esAdmin){mensaje("adAdminMsg","Debes iniciar sesión.",true);return;}
+  const file=$("adFile").files[0], enlace=$("adLink").value.trim(), activo=$("adActivo").checked;
+  if(!file){mensaje("adAdminMsg","Selecciona una imagen para el banner.",true);return;}
+  if(!file.type.startsWith("image/")){mensaje("adAdminMsg","El banner debe ser una imagen.",true);return;}
+  if(enlace && !/^https?:\/\//i.test(enlace)){mensaje("adAdminMsg","El enlace debe comenzar con http:// o https://.",true);return;}
+  const btn=$("guardarAd"); btn.disabled=true; mensaje("adAdminMsg","Subiendo banner...");
+  const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+  const path=`${crypto.randomUUID()}-${nombreArchivoAd(file.name)}.${ext}`;
+  const upload=await db.storage.from("ads").upload(path,file,{cacheControl:"3600",upsert:false});
+  if(upload.error){btn.disabled=false;mensaje("adAdminMsg","No se pudo subir el banner: "+upload.error.message,true);return;}
+  const imagen=db.storage.from("ads").getPublicUrl(path).data.publicUrl;
+  if(activo){
+    const {error:offError}=await db.from("ads").update({activo:false}).eq("activo",true);
+    if(offError){await db.storage.from("ads").remove([path]);btn.disabled=false;mensaje("adAdminMsg","No se pudo activar el nuevo anuncio: "+offError.message,true);return;}
+  }
+  const {error}=await db.from("ads").insert({imagen,enlace,activo});
+  if(error){await db.storage.from("ads").remove([path]);btn.disabled=false;mensaje("adAdminMsg","No se pudo guardar la publicidad: "+error.message,true);return;}
+  $("adFile").value=""; btn.disabled=false; mensaje("adAdminMsg","Publicidad guardada correctamente. 📢");
+  await cargarPublicidad(); await cargarPublicidadAdmin();
+}
+
+async function eliminarPublicidad(ad){
+  if(!usuario || !confirm("¿Eliminar la publicidad actual?"))return;
+  const {error}=await db.from("ads").delete().eq("id",ad.id);
+  if(error){alert("No se pudo eliminar la publicidad: "+error.message);return;}
+  try{
+    const marker="/storage/v1/object/public/ads/", pos=String(ad.imagen||"").indexOf(marker);
+    if(pos>=0){const path=decodeURIComponent(String(ad.imagen).slice(pos+marker.length));if(path) await db.storage.from("ads").remove([path]);}
+  }catch(e){console.warn("No se pudo limpiar el banner:",e);}
+  $("adLink").value=""; $("adActivo").checked=true; mensaje("adAdminMsg","Publicidad eliminada.");
+  await cargarPublicidad(); await cargarPublicidadAdmin();
+}
+
+
+// =========================
+// NEGOCIOS
+// =========================
+let negocios = [];
+let negocioEditando = null;
+
+function urlValida(valor){
+  return !valor || /^https?:\/\/\S+$/i.test(valor);
+}
+
+function telefonoHref(valor){
+  return String(valor || "").replace(/[^\d+]/g, "");
+}
+
+function whatsappHref(valor){
+  const limpio = String(valor || "").replace(/\D/g, "");
+  if(!limpio) return "";
+  return limpio.length === 10 ? `https://wa.me/52${limpio}` : `https://wa.me/${limpio}`;
+}
+
+function nombreArchivoNegocio(nombre){
+  return nombre.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-zA-Z0-9._-]+/g,"-")
+    .replace(/^-+|-+$/g,"") || "negocio";
+}
+
+async function obtenerFotosNegocios(ids){
+  if(!ids.length) return {};
+  const {data,error}=await db.from("negocio_fotos")
+    .select("id,negocio_id,url,orden,created_at")
+    .in("negocio_id",ids)
+    .order("orden",{ascending:true})
+    .order("created_at",{ascending:true});
+  if(error){
+    console.warn("No se pudieron cargar las fotos adicionales:",error);
+    return {};
+  }
+  return (data||[]).reduce((map,foto)=>{
+    (map[foto.negocio_id] ||= []).push(foto);
+    return map;
+  },{});
+}
+
+async function cargarNegocios(){
+  const {data,error}=await db.from("negocios")
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
+    .eq("activo",true)
+    .order("destacado",{ascending:false})
+    .order("created_at",{ascending:false});
+
+  if(error){
+    console.error("Error cargando negocios:", error);
+    $("negociosEstado").textContent="No se pudieron cargar los negocios.";
+    return;
+  }
+  negocios=data||[];
+  const fotos=await obtenerFotosNegocios(negocios.map(n=>n.id));
+  negocios.forEach(n=>{n.fotos=fotos[n.id]||[];});
+  renderNegocios();
+}
+
+function renderNegocios(){
+  const q=($('buscarNegocio')?.value||"").toLowerCase().trim();
+  const cat=$('filtroCategoria')?.value||"";
+  const lista=negocios.filter(n=>{
+    const texto=[n.nombre,n.categoria,n.descripcion,n.direccion].join(" ").toLowerCase();
+    return (!q || texto.includes(q)) && (!cat || n.categoria===cat);
+  });
+
+  $('negociosEstado').textContent=lista.length
+    ? `${lista.length} negocio${lista.length===1?"":"s"} encontrado${lista.length===1?"":"s"}.`
+    : "No hay negocios para mostrar.";
+
+  $('negociosGrid').innerHTML=lista.map(n=>{
+    const wa=whatsappHref(n.whatsapp);
+    const tel=telefonoHref(n.telefono);
+    const fotos=Array.isArray(n.fotos)?n.fotos:[];
+    const galeria=fotos.length ? `
+      <div class="business-gallery" aria-label="Fotos de ${esc(n.nombre)}">
+        ${fotos.map((foto,i)=>`<button type="button" class="business-gallery-item" onclick="verFotoNegocio(this.dataset.photoUrl)" data-photo-url="${esc(foto.url)}" aria-label="Ver foto ${i+1} de ${esc(n.nombre)}"><img src="${esc(foto.url)}" alt="${esc(n.nombre)} - foto ${i+1}" loading="lazy"></button>`).join("")}
+      </div>` : "";
+    return `
+      <article class="business-card ${n.destacado?"business-featured":""}">
+        ${n.destacado?'<div class="business-badge">⭐ DESTACADO</div>':""}
+        ${n.imagen?`<button type="button" class="business-image-link" onclick="verFotoNegocio(this.dataset.photoUrl)" data-photo-url="${esc(n.imagen)}" aria-label="Abrir imagen de ${esc(n.nombre)}"><img src="${esc(n.imagen)}" alt="${esc(n.nombre)}" class="business-img"></button>`:`<div class="business-img business-noimg">🏪</div>`}
+        ${galeria}
+        <div class="business-info">
+          <div class="business-category">${esc(n.categoria)}</div>
+          <h3>${esc(n.nombre)}</h3>
+          ${n.descripcion?`<p>${esc(n.descripcion)}</p>`:""}
+          ${n.direccion?`<div class="business-line">📍 ${esc(n.direccion)}</div>`:""}
+          ${n.horario?`<div class="business-line">🕐 ${esc(n.horario)}</div>`:""}
+          <div class="business-actions">
+            ${wa?`<a class="business-btn whatsapp" href="${wa}" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>`:""}
+            ${tel?`<a class="business-btn" href="tel:${esc(tel)}">📞 Llamar</a>`:""}
+            ${n.mapa?`<a class="business-btn" href="${esc(n.mapa)}" target="_blank" rel="noopener noreferrer">📍 Cómo llegar</a>`:""}
+          </div>
+          <div class="business-social">
+            ${n.facebook?`<a href="${esc(n.facebook)}" target="_blank" rel="noopener noreferrer">Facebook</a>`:""}
+            ${n.instagram?`<a href="${esc(n.instagram)}" target="_blank" rel="noopener noreferrer">Instagram</a>`:""}
+            ${n.sitio_web?`<a href="${esc(n.sitio_web)}" target="_blank" rel="noopener noreferrer">Sitio web</a>`:""}
+          </div>
+        </div>
+      </article>`;
+  }).join("");
+}
+
+function limpiarFormularioNegocio(){
+  negocioEditando=null;
+  $("negNombre").value="";
+  $("negCategoria").value="Comida";
+  $("negImagen").value="";
+  $("negGaleria").value="";
+  $("negDescripcion").value="";
+  $("negDireccion").value="";
+  $("negTelefono").value="";
+  $("negWhatsapp").value="";
+  $("negHorario").value="";
+  $("negFacebook").value="";
+  $("negInstagram").value="";
+  $("negWeb").value="";
+  $("negMapa").value="";
+  $("negActivo").checked=true;
+  $("negDestacado").checked=false;
+  $("negocioGaleriaActual").innerHTML="";
+  $("guardarNegocio").textContent="AGREGAR NEGOCIO";
+  $("cancelarNegocio").classList.add("hidden");
+}
+
+async function cargarNegociosAdmin(){
+  if(!usuario || !esAdmin)return;
+  const {data,error}=await db.from("negocios")
+    .select("id,created_at,nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado")
+    .order("created_at",{ascending:false});
+
+  if(error){
+    console.error("Error cargando negocios para admin:",error);
+    mensaje("negocioAdminMsg","No se pudieron consultar los negocios: "+error.message,true);
+    return;
+  }
+
+  const lista=data||[];
+  const fotos=await obtenerFotosNegocios(lista.map(n=>n.id));
+  lista.forEach(n=>{n.fotos=fotos[n.id]||[];});
+
+  // La lista administrativa conserva el mismo orden que se muestra públicamente:
+  // destacados primero y, dentro de cada grupo, por created_at descendente.
+  lista.sort((a,b)=>{
+    const da=!!a.destacado, dbb=!!b.destacado;
+    if(da!==dbb)return da? -1 : 1;
+    return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();
+  });
+
+  $('negociosAdminLista').innerHTML=lista.length ? lista.map((n,i)=>`
+    <div class="business-admin-row">
+      ${n.imagen?`<img src="${esc(n.imagen)}" alt="">`:`<div class="business-admin-noimg">🏪</div>`}
+      <div class="business-admin-data">
+        <strong>${esc(n.nombre)}</strong>
+        <span>${esc(n.categoria)} · ${n.activo?"ACTIVO":"INACTIVO"}${n.destacado?" · ⭐ DESTACADO":""} · 📸 ${n.fotos.length} foto${n.fotos.length===1?"":"s"}</span>
+      </div>
+      <div class="business-admin-actions">
+        <button class="move" onclick="moverNegocio(${Number(n.id)},-1)" title="Subir" ${i===0 || (!!lista[i-1].destacado!==!!n.destacado)?"disabled":""}>⬆️</button>
+        <button class="move" onclick="moverNegocio(${Number(n.id)},1)" title="Bajar" ${i===lista.length-1 || (!!lista[i+1].destacado!==!!n.destacado)?"disabled":""}>⬇️</button>
+        <button class="edit" onclick="editarNegocio(${Number(n.id)})">Editar</button>
+        <button class="delete" onclick="eliminarNegocio(${Number(n.id)})">Eliminar</button>
+      </div>
+    </div>`).join("") : '<div class="ad-empty">No hay negocios registrados.</div>';
+}
+
+async function moverNegocio(id, direccion){
+  if(!usuario || !esAdmin)return;
+  const {data,error}=await db.from("negocios")
+    .select("id,nombre,created_at,destacado")
+    .order("destacado",{ascending:false})
+    .order("created_at",{ascending:false});
+  if(error){
+    mensaje("negocioAdminMsg","No se pudo consultar el orden de los negocios: "+error.message,true);
+    return;
+  }
+
+  const lista=data||[];
+  const indice=lista.findIndex(n=>Number(n.id)===Number(id));
+  if(indice<0)return;
+  const actual=lista[indice];
+  const nuevoIndice=indice+Number(direccion);
+  if(nuevoIndice<0 || nuevoIndice>=lista.length)return;
+  const vecino=lista[nuevoIndice];
+
+  // No permitimos que un negocio destacado salte al grupo no destacado o viceversa.
+  if(!!actual.destacado!==!!vecino.destacado)return;
+
+  const fechaActual=actual.created_at;
+  const fechaVecino=vecino.created_at;
+  const temporal=new Date(Date.now()+86400000).toISOString();
+
+  const {error:tempError}=await db.from("negocios").update({created_at:temporal}).eq("id",actual.id);
+  if(tempError){
+    mensaje("negocioAdminMsg","No se pudo mover el negocio: "+tempError.message,true);
+    return;
+  }
+
+  const {error:vecinoError}=await db.from("negocios").update({created_at:fechaActual}).eq("id",vecino.id);
+  if(vecinoError){
+    await db.from("negocios").update({created_at:fechaActual}).eq("id",actual.id);
+    mensaje("negocioAdminMsg","No se pudo mover el negocio: "+vecinoError.message,true);
+    return;
+  }
+
+  const {error:finalError}=await db.from("negocios").update({created_at:fechaVecino}).eq("id",actual.id);
+  if(finalError){
+    // Intento de restauración de ambos valores originales.
+    await db.from("negocios").update({created_at:fechaActual}).eq("id",actual.id);
+    await db.from("negocios").update({created_at:fechaVecino}).eq("id",vecino.id);
+    mensaje("negocioAdminMsg","No se pudo completar el cambio de orden: "+finalError.message,true);
+    return;
+  }
+
+  mensaje("negocioAdminMsg",`Orden actualizado: ${actual.nombre} ${direccion<0?"subió ⬆️":"bajó ⬇️"}.`);
+  const scrollY=window.scrollY;
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:0,behavior:"auto"}));
+}
+
+function renderGaleriaAdmin(fotos){
+  const box=$("negocioGaleriaActual");
+  if(!box)return;
+  if(!fotos?.length){
+    box.innerHTML='<div class="galeria-vacia">No hay fotos adicionales todavía.</div>';
+    return;
+  }
+  box.innerHTML=`<div class="galeria-admin-grid">${fotos.map((foto,i)=>`
+    <div class="galeria-admin-item">
+      <img src="${esc(foto.url)}" alt="Foto ${i+1}">
+      <button type="button" class="delete-photo" onclick="eliminarFotoNegocio(${Number(foto.id)})">🗑️ Eliminar</button>
+    </div>`).join("")}</div>`;
+}
+
+function editarNegocio(id){
+  if(!usuario || !esAdmin)return;
+  db.from("negocios").select("*").eq("id",id).single().then(async ({data,error})=>{
+    if(error){mensaje("negocioAdminMsg","No se pudo abrir el negocio: "+error.message,true);return;}
+    negocioEditando=data;
+    const fotos=await obtenerFotosNegocios([id]);
+    negocioEditando.fotos=fotos[id]||[];
+    $("negNombre").value=data.nombre||"";
+    $("negCategoria").value=data.categoria||"Comida";
+    $("negImagen").value="";
+    $("negGaleria").value="";
+    $("negDescripcion").value=data.descripcion||"";
+    $("negDireccion").value=data.direccion||"";
+    $("negTelefono").value=data.telefono||"";
+    $("negWhatsapp").value=data.whatsapp||"";
+    $("negHorario").value=data.horario||"";
+    $("negFacebook").value=data.facebook||"";
+    $("negInstagram").value=data.instagram||"";
+    $("negWeb").value=data.sitio_web||"";
+    $("negMapa").value=data.mapa||"";
+    $("negActivo").checked=!!data.activo;
+    $("negDestacado").checked=!!data.destacado;
+    renderGaleriaAdmin(negocioEditando.fotos);
+    $("guardarNegocio").textContent="GUARDAR CAMBIOS DEL NEGOCIO";
+    $("cancelarNegocio").classList.remove("hidden");
+    $("negocioAdminMsg").textContent="";
+    $("negNombre").scrollIntoView({behavior:"smooth",block:"center"});
+  });
+}
+
+async function subirFotosGaleria(negocioId,files){
+  const fotosSubidas=[];
+  const {data:existentes,error:countError}=await db.from("negocio_fotos")
+    .select("id,url",{count:"exact"})
+    .eq("negocio_id",negocioId);
+  if(countError){
+    console.error("No se pudo consultar la galería:",countError);
+    return {fotos:[],error:countError.message};
+  }
+
+  const disponibles=Math.max(0,9-(existentes?.length||0));
+  if(files.length>disponibles){
+    return {fotos:[],error:`Este negocio ya tiene ${existentes?.length||0} fotos adicionales. Solo puedes agregar ${disponibles} más (máximo 9).`};
+  }
+
+  for(const file of files){
+    if(!file.type.startsWith("image/")) continue;
+    const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+    const path=`${crypto.randomUUID()}-${nombreArchivoNegocio(file.name)}.${ext}`;
+
+    const upload=await db.storage.from("negocios").upload(path,file,{cacheControl:"3600",upsert:false});
+    if(upload.error){
+      console.error("Error Storage galería:",upload.error);
+      return {fotos:fotosSubidas,error:`No se pudo subir "${file.name}": ${upload.error.message}`};
+    }
+
+    const url=db.storage.from("negocios").getPublicUrl(path).data.publicUrl;
+    const orden=Date.now()+fotosSubidas.length;
+    const {data,error}=await db.from("negocio_fotos")
+      .insert({negocio_id:negocioId,url,orden})
+      .select("id,negocio_id,url,orden,created_at")
+      .single();
+
+    if(error){
+      await db.storage.from("negocios").remove([path]);
+      console.error("Error DB galería:",error);
+      return {fotos:fotosSubidas,error:`La foto "${file.name}" se subió, pero no pudo registrarse en la galería: ${error.message}`};
+    }
+    fotosSubidas.push(data);
+  }
+  return {fotos:fotosSubidas,error:null};
+}
+
+async function guardarNegocio(){
+  if(!usuario || !esAdmin){mensaje("negocioAdminMsg","Debes iniciar sesión.",true);return;}
+
+  const nombre=$("negNombre").value.trim();
+  const categoria=$("negCategoria").value.trim();
+  const descripcion=$("negDescripcion").value.trim();
+  const direccion=$("negDireccion").value.trim();
+  const telefono=$("negTelefono").value.trim();
+  const whatsapp=$("negWhatsapp").value.trim();
+  const horario=$("negHorario").value.trim();
+  const facebook=$("negFacebook").value.trim();
+  const instagram=$("negInstagram").value.trim();
+  const sitio_web=$("negWeb").value.trim();
+  const mapa=$("negMapa").value.trim();
+  const activo=$("negActivo").checked;
+  const destacado=$("negDestacado").checked;
+  const file=$("negImagen").files[0];
+  const galleryFiles=[...($("negGaleria")?.files||[])];
+
+  if(!nombre||!categoria){
+    mensaje("negocioAdminMsg","Completa nombre y categoría.",true);
+    return;
+  }
+
+  for(const [campo,valor] of [["Facebook",facebook],["Instagram",instagram],["Sitio web",sitio_web],["Google Maps",mapa]]){
+    if(valor && !urlValida(valor)){
+      mensaje("negocioAdminMsg",`${campo} debe comenzar con http:// o https://.`,true);
+      return;
+    }
+  }
+
+  if(file && !file.type.startsWith("image/")){
+    mensaje("negocioAdminMsg","La imagen principal debe ser una imagen.",true);
+    return;
+  }
+  if(galleryFiles.some(f=>!f.type.startsWith("image/"))){
+    mensaje("negocioAdminMsg","Todas las fotos adicionales deben ser imágenes.",true);
+    return;
+  }
+
+  const btn=$("guardarNegocio");
+  btn.disabled=true;
+  mensaje("negocioAdminMsg",negocioEditando?"Guardando cambios...":"Subiendo imagen y guardando negocio...");
+
+  let imagen=negocioEditando?.imagen||null;
+  let nuevoPath=null;
+
+  if(file){
+    const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+    nuevoPath=`${crypto.randomUUID()}-${nombreArchivoNegocio(file.name)}.${ext}`;
+
+    const upload=await db.storage.from("negocios").upload(nuevoPath,file,{cacheControl:"3600",upsert:false});
+    if(upload.error){
+      console.error(upload.error);
+      btn.disabled=false;
+      mensaje("negocioAdminMsg","No se pudo subir la imagen: "+upload.error.message,true);
+      return;
+    }
+    imagen=db.storage.from("negocios").getPublicUrl(nuevoPath).data.publicUrl;
+  }
+
+  const payload={nombre,categoria,descripcion,imagen,direccion,telefono,whatsapp,horario,facebook,instagram,sitio_web,mapa,activo,destacado};
+  let error=null;
+  let negocioId=negocioEditando?.id||null;
+
+  if(negocioEditando){
+    ({error}=await db.from("negocios").update(payload).eq("id",negocioEditando.id));
+  }else{
+    const resultado=await db.from("negocios").insert(payload).select("id").single();
+    error=resultado.error;
+    negocioId=resultado.data?.id||null;
+  }
+
+  if(error){
+    if(nuevoPath) await db.storage.from("negocios").remove([nuevoPath]);
+    console.error(error);
+    btn.disabled=false;
+    mensaje("negocioAdminMsg","No se pudo guardar el negocio: "+error.message,true);
+    return;
+  }
+
+  // Si reemplazamos imagen principal, eliminar la anterior.
+  if(negocioEditando && file && negocioEditando.imagen){
+    try{
+      const marker="/storage/v1/object/public/negocios/";
+      const pos=String(negocioEditando.imagen).indexOf(marker);
+      if(pos>=0){
+        const oldPath=decodeURIComponent(String(negocioEditando.imagen).slice(pos+marker.length));
+        if(oldPath) await db.storage.from("negocios").remove([oldPath]);
+      }
+    }catch(e){console.warn("No se pudo limpiar la imagen anterior:",e);}
+  }
+
+  let galleryError=null;
+  let galleryCount=0;
+  if(galleryFiles.length && negocioId){
+    mensaje("negocioAdminMsg",`Subiendo ${galleryFiles.length} foto${galleryFiles.length===1?"":"s"} adicionales...`);
+    const resultadoGaleria=await subirFotosGaleria(negocioId,galleryFiles);
+    galleryCount=resultadoGaleria.fotos.length;
+    galleryError=resultadoGaleria.error;
+  }
+
+  btn.disabled=false;
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+
+  if(galleryError){
+    mensaje("negocioAdminMsg",`Negocio guardado. ${galleryCount} foto${galleryCount===1?"":"s"} adicional${galleryCount===1?"":"es"} guardada${galleryCount===1?"":"s"}. ${galleryError}`,true);
+  }else if(galleryFiles.length){
+    mensaje("negocioAdminMsg",`✅ Negocio guardado y ${galleryCount} foto${galleryCount===1?"":"s"} adicional${galleryCount===1?"":"es"} guardada${galleryCount===1?"":"s"}.`);
+  }else{
+    mensaje("negocioAdminMsg",negocioEditando?"Negocio actualizado correctamente. 🏪":"Negocio agregado correctamente. 🏪");
+  }
+
+  // Si estábamos editando, conservamos el formulario abierto y mostramos la galería actualizada.
+  // Esto permite comprobar inmediatamente que las fotos quedaron guardadas.
+  if(negocioId && negocioEditando){
+    const fotosActualizadas=await obtenerFotosNegocios([negocioId]);
+    negocioEditando.fotos=fotosActualizadas[negocioId]||[];
+    renderGaleriaAdmin(negocioEditando.fotos);
+    $("negGaleria").value="";
+  }else{
+    limpiarFormularioNegocio();
+  }
+}
+
+async function eliminarFotoNegocio(id){
+  if(!usuario || !esAdmin)return;
+  const {data,error}=await db.from("negocio_fotos").select("id,url,negocio_id").eq("id",id).single();
+  if(error){alert("No se pudo consultar la foto: "+error.message);return;}
+  if(!confirm("¿Eliminar esta foto de la galería?"))return;
+  const {error:delError}=await db.from("negocio_fotos").delete().eq("id",id);
+  if(delError){alert("No se pudo eliminar la foto: "+delError.message);return;}
+  try{
+    const marker="/storage/v1/object/public/negocios/";
+    const pos=String(data.url||"").indexOf(marker);
+    if(pos>=0){
+      const path=decodeURIComponent(String(data.url).slice(pos+marker.length));
+      if(path) await db.storage.from("negocios").remove([path]);
+    }
+  }catch(e){console.warn("No se pudo limpiar la foto:",e);}
+  const fotos=await obtenerFotosNegocios([data.negocio_id]);
+  if(negocioEditando?.id===data.negocio_id){
+    negocioEditando.fotos=fotos[data.negocio_id]||[];
+    renderGaleriaAdmin(negocioEditando.fotos);
+  }
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+}
+
+async function eliminarNegocio(id){
+  if(!usuario || !esAdmin)return;
+  const {data,error:readError}=await db.from("negocios").select("id,nombre,imagen").eq("id",id).single();
+  if(readError){alert("No se pudo consultar el negocio: "+readError.message);return;}
+  if(!confirm(`¿Eliminar "${data.nombre}"?`))return;
+
+  const fotos=await obtenerFotosNegocios([id]);
+  const {error}=await db.from("negocios").delete().eq("id",id);
+  if(error){alert("No se pudo eliminar el negocio: "+error.message);return;}
+
+  try{
+    const marker="/storage/v1/object/public/negocios/";
+    const pos=String(data.imagen||"").indexOf(marker);
+    if(pos>=0){
+      const path=decodeURIComponent(String(data.imagen).slice(pos+marker.length));
+      if(path) await db.storage.from("negocios").remove([path]);
+    }
+    for(const foto of (fotos[id]||[])){
+      const posFoto=String(foto.url||"").indexOf(marker);
+      if(posFoto>=0){
+        const pathFoto=decodeURIComponent(String(foto.url).slice(posFoto+marker.length));
+        if(pathFoto) await db.storage.from("negocios").remove([pathFoto]);
+      }
+    }
+  }catch(e){console.warn("No se pudo limpiar las imágenes:",e);}
+
+  mensaje("negocioAdminMsg","Negocio eliminado.");
+  limpiarFormularioNegocio();
+  await cargarNegocios();
+  await cargarNegociosAdmin();
+}
+
+function abrirNegocios(e){
+  if(e)e.preventDefault();
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.add("hidden");
+  $("netflix")?.classList.add("hidden");
+  $("enVivo").classList.add("hidden");
+  $("buscar").classList.add("hidden");
+  $("negocios").classList.remove("hidden");
+  history.replaceState(null,"","#negocios");
+  $("negocios").scrollIntoView({behavior:"smooth",block:"start"});
+  cargarNegocios();
+}
+
+function abrirEnVivo(e){
+  if(e)e.preventDefault();
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.add("hidden");
+  $("negocios").classList.add("hidden");
+  $("netflix")?.classList.add("hidden");
+  $("buscar").classList.add("hidden");
+  $("enVivo").classList.remove("hidden");
+  history.replaceState(null,"","#enVivo");
+  $("enVivo").scrollIntoView({behavior:"smooth",block:"start"});
+  cargarCanalesEnVivo();
+}
+
+// =========================
+// CANALES EN VIVO
+// =========================
+async function cargarCanalesEnVivo(){
+  const estado=$("canalesEstado");
+  if(!estado)return;
+  estado.textContent="Cargando canales...";
+  const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,logo,url,activo,created_at,orden").eq("activo",true).order("orden",{ascending:true,nullsFirst:false}).order("nombre",{ascending:true});
+  if(error){
+    console.error("No se pudieron cargar los canales en vivo:",error);
+    estado.textContent="No se pudieron cargar los canales. Verifica la tabla canales_en_vivo y ejecuta el SQL de actualización incluido.";
+    $("canalesGrid").innerHTML="";
+    return;
+  }
+  canalesEnVivo=data||[];
+  renderCanalesEnVivo();
+}
+
+function renderCanalesEnVivo(){
+  const grid=$("canalesGrid"), estado=$("canalesEstado");
+  if(!grid||!estado)return;
+  const q=String($("buscarCanal")?.value||"").toLowerCase().trim();
+  const lista=canalesEnVivo.filter(c=>String(c.nombre||"").toLowerCase().includes(q)||String(c.categoria||"").toLowerCase().includes(q));
+  estado.textContent=lista.length?`${lista.length} canal(es) disponible(s).`:"Todavía no hay canales en vivo. Vuelve más tarde.";
+  grid.innerHTML=lista.map(c=>`<article class="card live-card" onclick="reproducirCanalEnVivo(${Number(c.id)})">
+    <img class="poster live-poster" src="${esc(c.logo||"")}" alt="Logo ${esc(c.nombre)}" loading="lazy" onerror="this.style.display='none'">
+    <div class="info live-card-info"><h3>${esc(c.nombre)}</h3><div class="meta">${esc(c.categoria||"General")} · En vivo</div></div>
+    <button type="button" class="live-play" onclick="event.stopPropagation();reproducirCanalEnVivo(${Number(c.id)})">▶ VER CANAL</button>
+    ${usuario?`<div class="card-actions live-card-actions" onclick="event.stopPropagation();">
+      <button class="move move-first" type="button" onclick="moverCanalEnVivo(${Number(c.id)}, -2)" title="Enviar al principio">⏫ Inicio</button>
+      <button class="move move-up" type="button" onclick="moverCanalEnVivo(${Number(c.id)}, -1)" title="Subir una posición">⬆️ Subir</button>
+      <button class="move move-down" type="button" onclick="moverCanalEnVivo(${Number(c.id)}, 1)" title="Bajar una posición">⬇️ Bajar</button>
+      <button class="move move-last" type="button" onclick="moverCanalEnVivo(${Number(c.id)}, 2)" title="Enviar al final">⏬ Final</button>
+      <button class="edit" type="button" onclick="editarCanalEnVivo(${Number(c.id)})">Editar</button>
+      <button class="delete" type="button" onclick="eliminarCanalEnVivo(${Number(c.id)})">Eliminar</button>
+    </div>`:""}
+  </article>`).join("");
+}
+
+async function moverCanalEnVivo(id, movimiento){
+  if(!usuario || !esAdmin)return;
+  const {data,error}=await db.from("canales_en_vivo").select("id,orden,nombre").order("orden",{ascending:true,nullsFirst:false}).order("nombre",{ascending:true});
+  if(error){alert("No se pudo ordenar los canales. Verifica que ejecutaste el archivo SQL incluido. Detalle: "+error.message);return;}
+  const filas=data||[];
+  const origen=filas.findIndex(c=>Number(c.id)===Number(id));
+  if(origen<0)return;
+  let destino=movimiento===-2?0:movimiento===2?filas.length-1:Math.max(0,Math.min(filas.length-1,origen+movimiento));
+  if(destino===origen)return;
+  const [item]=filas.splice(origen,1);filas.splice(destino,0,item);
+  for(let i=0;i<filas.length;i++){
+    const {error:err}=await db.from("canales_en_vivo").update({orden:i+1}).eq("id",filas[i].id);
+    if(err){alert("No se pudo guardar el orden de los canales: "+err.message);return;}
+  }
+  await cargarCanalesEnVivo();await cargarCanalesAdmin();
+}
+
+function reproducirCanalEnVivo(id){
+  const canal=canalesEnVivo.find(c=>Number(c.id)===Number(id));
+  if(!canal)return;
+  if(detectarYouTube(canal.url)){
+    alert("Esta sección está configurada para enlaces directos de canales (HLS/M3U8 o MP4), no para enlaces de YouTube.");
+    return;
+  }
+  // Los canales MPEG-TS se abren en un reproductor independiente, sin cambiar el diseño del sitio.
+  const urlCanal=String(canal.url||"").trim();
+  const esTS=/\.ts(?:$|[?#])/i.test(urlCanal) || /[?&]f=\.ts(?:&|$)/i.test(urlCanal);
+  if(esTS){
+    const destino=new URL("player-ts.html",window.location.href);
+    destino.searchParams.set("url",urlCanal);
+    destino.searchParams.set("titulo",String(canal.nombre||"Canal en vivo"));
+    const ventana=window.open(destino.href,"_blank");
+    if(ventana){ventana.opener=null;}
+    else{alert("El navegador bloqueó la nueva pestaña. Permite las ventanas emergentes para Shot TV e intenta de nuevo.");}
+    return;
+  }
+  $("ptitulo").textContent="📺 "+canal.nombre;
+  $("modal").classList.add("open");
+  reproducirFuente(canal.url);
+}
+
+async function cargarCanalesAdmin(){
+  if(!usuario || !esAdmin)return;
+  const cont=$("canalesAdminLista");
+  if(!cont)return;
+  const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,url,logo,activo,orden").order("orden",{ascending:true,nullsFirst:false}).order("created_at",{ascending:false});
+  if(error){
+    console.error(error);
+    cont.innerHTML='<p class="mensaje error">No se pudieron consultar los canales. Revisa la tabla y las políticas de Supabase.</p>';
+    return;
+  }
+  cont.innerHTML=(data||[]).map(c=>`<div class="live-admin-row"><div><strong>${esc(c.nombre)}</strong><small>${esc(c.categoria||"General")} · ${c.activo?"Activo":"Inactivo"}</small><small class="live-url">${esc(c.url)}</small></div><div class="live-admin-actions"><button type="button" class="edit" onclick="editarCanalEnVivo(${Number(c.id)})">Editar</button><button type="button" class="delete" onclick="eliminarCanalEnVivo(${Number(c.id)})">Eliminar</button></div></div>`).join("")||'<p class="ad-empty">Aún no agregas canales.</p>';
+}
+
+async function editarCanalEnVivo(id){
+  if(!usuario || !esAdmin)return;
+  let canal=canalesEnVivo.find(c=>Number(c.id)===Number(id));
+  if(!canal){
+    const {data,error}=await db.from("canales_en_vivo").select("id,nombre,categoria,url,logo,activo,orden").eq("id",id).maybeSingle();
+    if(error||!data){alert("No se pudo abrir el canal para editar.");return;}
+    canal=data;
+  }
+  canalEditandoId=Number(canal.id);
+  $("canalNombre").value=canal.nombre||"";
+  $("canalCategoria").value=canal.categoria||"";
+  $("canalUrl").value=canal.url||"";
+  $("canalLogo").value=canal.logo||"";
+  if($("canalLogoFile"))$("canalLogoFile").value="";
+  $("canalActivo").checked=!!canal.activo;
+  const btn=$("guardarCanal");
+  btn.textContent="💾 GUARDAR CAMBIOS";
+  const cancelar=$("cancelarEdicionCanal");if(cancelar)cancelar.hidden=false;
+  mensaje("canalAdminMsg",`Editando: ${canal.nombre}. Modifica los datos y pulsa GUARDAR CAMBIOS.`);
+  $("canalNombre").scrollIntoView({behavior:"smooth",block:"center"});
+  $("canalNombre").focus();
+}
+
+function cancelarEdicionCanal(){
+  canalEditandoId=null;
+  ["canalNombre","canalCategoria","canalUrl","canalLogo"].forEach(id=>{if($(id))$(id).value="";});
+  if($("canalLogoFile"))$("canalLogoFile").value="";
+  if($("canalActivo"))$("canalActivo").checked=true;
+  const btn=$("guardarCanal");if(btn)btn.textContent="📺 GUARDAR EN EN VIVO";
+  const cancelar=$("cancelarEdicionCanal");if(cancelar)cancelar.hidden=true;
+  mensaje("canalAdminMsg","");
+}
+
+async function guardarCanalEnVivo(){
+  if(!usuario || !esAdmin){mensaje("canalAdminMsg","Inicia sesión como administrador.",true);return;}
+  const nombre=$("canalNombre").value.trim();
+  const categoria=$("canalCategoria").value.trim()||"General";
+  const url=$("canalUrl").value.trim();
+  const logoUrl=$("canalLogo").value.trim();
+  const logoFile=$("canalLogoFile")?.files?.[0]||null;
+  const activo=$("canalActivo").checked;
+  if(!nombre||!url){mensaje("canalAdminMsg","Escribe el nombre y el enlace del canal.",true);return;}
+  try{new URL(url);}catch(e){mensaje("canalAdminMsg","El enlace del canal no es una URL válida.",true);return;}
+  if(!/^https?:\/\//i.test(url)){mensaje("canalAdminMsg","El enlace debe comenzar con https:// o http://",true);return;}
+  if(logoUrl){try{new URL(logoUrl);}catch(e){mensaje("canalAdminMsg","La URL del logo no es válida. También puedes subir una imagen desde tu dispositivo.",true);return;}}
+  if(logoFile && !logoFile.type.startsWith("image/")){mensaje("canalAdminMsg","El archivo del logo debe ser una imagen.",true);return;}
+
+  const btn=$("guardarCanal");
+  if(btn.dataset.guardando === "1") return;
+  btn.dataset.guardando = "1";
+  btn.disabled=true;
+  let logo=logoUrl||null;
+  let logoStoragePath=null;
+  try{
+    if(canalEditandoId && !logoFile && !logoUrl){
+      const existente=canalesEnVivo.find(c=>Number(c.id)===Number(canalEditandoId));
+      if(existente)logo=existente.logo||null;
+      else {
+        const {data:previo}=await db.from("canales_en_vivo").select("logo").eq("id",canalEditandoId).maybeSingle();
+        logo=previo?.logo||null;
+      }
+    }
+    if(logoFile){
+      mensaje("canalAdminMsg","Subiendo imagen del canal...");
+      const ext=(logoFile.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+      logoStoragePath=`canales/${crypto.randomUUID()}-${nombreArchivoSeguro(logoFile.name.replace(/\.[^.]+$/, ""))}.${ext}`;
+      const upload=await db.storage.from("posters").upload(logoStoragePath,logoFile,{cacheControl:"3600",upsert:false});
+      if(upload.error) throw new Error("No se pudo subir la imagen: "+upload.error.message);
+      logo=db.storage.from("posters").getPublicUrl(logoStoragePath).data.publicUrl;
+    }
+    mensaje("canalAdminMsg",canalEditandoId?"Guardando cambios del canal...":"Guardando canal en la sección En vivo...");
+    // Los canales se guardan exclusivamente en canales_en_vivo, nunca en peliculas.
+    let error;
+    if(canalEditandoId){
+      ({error}=await db.from("canales_en_vivo").update({nombre,categoria,url,logo,activo}).eq("id",canalEditandoId));
+    }else{
+      const {data:ordenes}=await db.from("canales_en_vivo").select("orden").order("orden",{ascending:false,nullsFirst:true}).limit(1);
+      const siguienteOrden=Number(ordenes?.[0]?.orden||0)+1;
+      ({error}=await db.from("canales_en_vivo").insert({nombre,categoria,url,logo,activo,orden:siguienteOrden}));
+    }
+    if(error){
+      if(logoStoragePath) await db.storage.from("posters").remove([logoStoragePath]);
+      throw new Error("No se guardó el canal. Detalle: "+error.message);
+    }
+    cancelarEdicionCanal();
+    mensaje("canalAdminMsg","Canal guardado correctamente en En vivo. 📺");
+    await cargarCanalesAdmin();
+    await cargarCanalesEnVivo();
+  }catch(error){
+    console.error(error);
+    mensaje("canalAdminMsg",error.message||"Ocurrió un error al guardar el canal.",true);
+  }finally{
+    btn.disabled=false;
+    btn.dataset.guardando="0";
+  }
+}
+async function eliminarCanalEnVivo(id){
+  if(!usuario || !esAdmin)return;
+  const canalConfirm=(await db.from("canales_en_vivo").select("nombre").eq("id",id).maybeSingle());
+  if(canalConfirm.error){alert("No se pudo consultar el canal: "+canalConfirm.error.message);return;}
+  if(!confirm(`¿Eliminar el canal "${canalConfirm.data?.nombre||""}"?`))return;
+  if(Number(canalEditandoId)===Number(id))cancelarEdicionCanal();
+  const {error}=await db.from("canales_en_vivo").delete().eq("id",id);
+  if(error){alert("No se pudo eliminar: "+error.message);return;}
+  await cargarCanalesAdmin();await cargarCanalesEnVivo();
+}
+
+const WHATSAPP_REGISTRO_NEGOCIO = "526561273144";
+
+function generarNumeroRegistro(){
+  // Identificador corto y único para seguimiento: STV-XXXXXX
+  // Se evita reutilizar un código ya generado en este dispositivo.
+  const usados=JSON.parse(localStorage.getItem("shotTvRegistros")||"[]");
+  let codigo="";
+  do{
+    codigo=Math.random().toString(36).slice(2,8).toUpperCase();
+  }while(usados.includes(codigo));
+  usados.push(codigo);
+  if(usados.length>200) usados.splice(0,usados.length-200);
+  localStorage.setItem("shotTvRegistros",JSON.stringify(usados));
+  return `STV-${codigo}`;
+}
+
+function abrirRegistroNegocio(){
+  const panel=$("registroNegocio");
+  if(!panel)return;
+  // El número nace en el momento exacto en que el cliente pulsa "Registra tu negocio".
+  const numero=generarNumeroRegistro();
+  $("regNumero").value=numero;
+  limpiarRegistroNegocio(false);
+  // limpiarRegistroNegocio(false) conserva el número recién generado.
+  $("regNumero").value=numero;
+  panel.classList.remove("hidden");
+  panel.scrollIntoView({behavior:"smooth",block:"start"});
+  setTimeout(()=>$("regNombre")?.focus(),350);
+}
+
+function cerrarRegistroNegocio(){
+  const panel=$("registroNegocio");
+  if(panel)panel.classList.add("hidden");
+  limpiarRegistroNegocio(true);
+}
+
+function limpiarRegistroNegocio(limpiarNumero=true){
+  ["regNombre","regDescripcion","regDireccion","regTelefono","regWhatsapp","regHorario","regFacebook","regInstagram","regWeb","regMapa"].forEach(id=>{ if($(id)) $(id).value=""; });
+  if($("regCategoria")) $("regCategoria").value="Comida";
+  if(limpiarNumero && $("regNumero")) $("regNumero").value="";
+  mensaje("registroNegocioMsg","");
+}
+
+async function enviarRegistroPorWhatsApp(){
+  const boton=$("enviarRegistroNegocio");
+  const textoOriginal=boton?.textContent||"📲 ENVIAR SOLICITUD POR WHATSAPP";
+  const nombre=$("regNombre").value.trim();
+  const categoria=$("regCategoria").value.trim();
+  const descripcion=$("regDescripcion").value.trim();
+  const direccion=$("regDireccion").value.trim();
+  const telefono=$("regTelefono").value.trim();
+  const whatsapp=$("regWhatsapp").value.trim();
+  const horario=$("regHorario").value.trim();
+  const facebook=$("regFacebook").value.trim();
+  const instagram=$("regInstagram").value.trim();
+  const web=$("regWeb").value.trim();
+  const mapa=$("regMapa").value.trim();
+  const numeroRegistro=$("regNumero")?.value.trim() || generarNumeroRegistro();
+
+  if($("regNumero")) $("regNumero").value=numeroRegistro;
+
+  if(!nombre || !descripcion){
+    mensaje("registroNegocioMsg","Completa el nombre y la descripción del negocio.",true);
+    if(!nombre) $("regNombre").focus(); else $("regDescripcion").focus();
+    return;
+  }
+
+  const mensajeWhatsApp=[
+    "🏪 *SOLICITUD DE REGISTRO DE NEGOCIO — SHOT TV*",
+    "",
+    `*Número de registro:* ${numeroRegistro}`,
+    "",
+    `*Nombre:* ${nombre}`,
+    `*Categoría:* ${categoria}`,
+    `*Descripción:* ${descripcion}`,
+    `*Dirección:* ${direccion||"No proporcionada"}`,
+    `*Teléfono:* ${telefono||"No proporcionado"}`,
+    `*WhatsApp:* ${whatsapp||"No proporcionado"}`,
+    `*Horario:* ${horario||"No proporcionado"}`,
+    `*Facebook:* ${facebook||"No proporcionado"}`,
+    `*Instagram:* ${instagram||"No proporcionado"}`,
+    `*Sitio web:* ${web||"No proporcionado"}`,
+    `*Google Maps:* ${mapa||"No proporcionado"}`,
+    "",
+    `📸 *IMPORTANTE:* ENVIE SU IMAGEN DE SU NEGOCIO CON EL NUMERO DE REGISTRO ${numeroRegistro}`
+  ].join("\n");
+
+  // Primero guardamos la solicitud en Supabase para que quede registrada
+  // aunque el cliente después cierre WhatsApp.
+  if(boton){
+    boton.disabled=true;
+    boton.textContent="⏳ GUARDANDO SOLICITUD...";
+  }
+
+  const datosSolicitud={
+    numero_registro: numeroRegistro,
+    nombre,
+    categoria,
+    descripcion,
+    direccion: direccion || null,
+    telefono: telefono || null,
+    whatsapp: whatsapp || null,
+    horario: horario || null,
+    facebook: facebook || null,
+    instagram: instagram || null,
+    sitio_web: web || null,
+    mapa: mapa || null,
+    estado: "pendiente"
+  };
+
+  let resultado=await db.from("solicitudes_negocios").insert(datosSolicitud);
+
+  // Si por una coincidencia extremadamente rara el código ya existe,
+  // generamos otro y reintentamos una sola vez.
+  if(resultado.error && resultado.error.code==="23505"){
+    const nuevoNumero=generarNumeroRegistro();
+    numeroRegistro=nuevoNumero;
+    if($("regNumero")) $("regNumero").value=numeroRegistro;
+    datosSolicitud.numero_registro=numeroRegistro;
+    resultado=await db.from("solicitudes_negocios").insert(datosSolicitud);
+  }
+
+  if(resultado.error){
+    console.error("Error guardando solicitud:",resultado.error);
+    mensaje("registroNegocioMsg","No se pudo guardar la solicitud. Verifica tu conexión e inténtalo nuevamente.",true);
+    if(boton){
+      boton.disabled=false;
+      boton.textContent=textoOriginal;
+    }
+    return;
+  }
+
+  // El mismo número guardado en Supabase se envía a WhatsApp.
+  const mensajeFinal=mensajeWhatsApp.replaceAll(
+    /\*Número de registro:\*:.*/g,
+    `*Número de registro:* ${numeroRegistro}`
+  ).replaceAll(
+    /NUMERO DE REGISTRO (?:STV-[A-Z0-9]{6})/g,
+    `NUMERO DE REGISTRO ${numeroRegistro}`
+  );
+
+  const url="https://wa.me/"+WHATSAPP_REGISTRO_NEGOCIO+"?text="+encodeURIComponent(mensajeFinal);
+  if(boton){
+    boton.textContent="✅ SOLICITUD GUARDADA — ABRIENDO WHATSAPP...";
+  }
+  window.location.href=url;
+}
+
+function verFotoNegocio(url){
+  if(!url)return;
+  const modal=$("businessPhotoModal");
+  const img=$("businessPhotoViewer");
+  if(!modal||!img)return;
+  img.src=url;
+  modal.classList.add("open");
+  document.body.style.overflow="hidden";
+}
+
+function cerrarFotoNegocio(){
+  const modal=$("businessPhotoModal");
+  const img=$("businessPhotoViewer");
+  if(img)img.removeAttribute("src");
+  if(modal)modal.classList.remove("open");
+  document.body.style.overflow="";
+}
+
+function abrirCatalogo(e){
+  if(e)e.preventDefault();
+  $("buscar").classList.remove("hidden");
+  $("negocios").classList.add("hidden");
+  $("netflix")?.classList.add("hidden");
+  $("enVivo").classList.add("hidden");
+  $("admin").classList.add("hidden");
+  $("catalogo").classList.remove("hidden");
+  history.replaceState(null,"","#catalogo");
+}
+
+function abrirNetflix(e){
+  if(e)e.preventDefault();
+  $("buscar").classList.add("hidden");
+  $("catalogo").classList.add("hidden");
+  $("negocios").classList.add("hidden");
+  $("enVivo").classList.add("hidden");
+  $("admin").classList.add("hidden");
+  $("netflix")?.classList.remove("hidden");
+  history.replaceState(null,"","#netflix");
+  cargarNetflixVisto();
+}
+
+
+function detectarYouTube(url){
+  try{
+    const u=new URL(String(url||""));
+    const host=u.hostname.toLowerCase().replace(/^www\./,"");
+    if(host!=="youtube.com" && host!=="youtu.be" && !host.endsWith(".youtube.com")) return null;
+    let id="";
+    if(host==="youtu.be") id=u.pathname.split("/").filter(Boolean)[0]||"";
+    else if(u.pathname.startsWith("/watch")) id=u.searchParams.get("v")||"";
+    else if(u.pathname.startsWith("/live/")) id=u.pathname.split("/")[2]||"";
+    else if(u.pathname.startsWith("/embed/")) id=u.pathname.split("/")[2]||"";
+    else if(u.pathname.startsWith("/shorts/")) id=u.pathname.split("/")[2]||"";
+    id=id.split("?")[0].split("&")[0];
+    return /^[A-Za-z0-9_-]{6,20}$/.test(id)?id:null;
+  }catch(e){return null;}
+}
+
+function esHls(url){
+  return /\.m3u8(?:$|[?#])/i.test(String(url||""));
+}
+
+function mostrarSoloReproductor(tipo){
+  const video=$("player");
+  const yt=$("youtubePlayer");
+  if(video) video.style.display = tipo === "video" ? "block" : "none";
+  if(yt) yt.style.display = tipo === "youtube" ? "block" : "none";
+}
+
+function limpiarReproductores(){
+  const video=$("player");
+  const yt=$("youtubePlayer");
+  if(video){
+    try{video.pause();}catch(e){}
+    if(window.__shotTvHls){try{window.__shotTvHls.destroy();}catch(e){} window.__shotTvHls=null;}
+    if(window.__shotTvMpegts){try{window.__shotTvMpegts.pause();window.__shotTvMpegts.unload();window.__shotTvMpegts.detachMediaElement();window.__shotTvMpegts.destroy();}catch(e){} window.__shotTvMpegts=null;}
+    video.removeAttribute("src");
+    video.load();
+    video.classList.add("hidden");
+    video.style.display="none";
+  }
+  if(yt){
+    yt.src="about:blank";
+    yt.classList.add("hidden");
+    yt.style.display="none";
+  }
+}
+
+function reproducirFuente(url){
+  const video=$("player");
+  const yt=$("youtubePlayer");
+  const fuente=String(url||"").trim();
+
+  if(!video || !yt || !fuente){
+    console.error("Shot TV: falta el reproductor o la URL del canal.");
+    return;
+  }
+
+  const youtubeId=detectarYouTube(fuente);
+  // Acepta .m3u8 directo y URLs que terminan en playlist.m3u8.
+  const esHLS=/\.m3u8(?:$|[?#])/i.test(fuente) || /[?&]f=\.m3u8(?:&|$)/i.test(fuente);
+  limpiarReproductores();
+
+  if(youtubeId){
+    yt.src=`https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&rel=0`;
+    yt.classList.remove("hidden");
+    yt.style.display="block";
+    return;
+  }
+
+  video.classList.remove("hidden");
+  video.style.display="block";
+  yt.classList.add("hidden");
+  yt.style.display="none";
+  video.controls=true;
+  video.autoplay=true;
+  video.playsInline=true;
+  video.preload="auto";
+
+  let estado=$("shotTvEstadoReproductor");
+  if(!estado){
+    estado=document.createElement("div");
+    estado.id="shotTvEstadoReproductor";
+    estado.style.cssText="display:none;background:#222;color:#fff;padding:12px;margin:8px 0;border-radius:8px;text-align:center;overflow-wrap:anywhere;";
+    if(video.parentNode) video.parentNode.insertBefore(estado,video);
+  }
+  const informar=(texto)=>{estado.textContent=texto;estado.style.display="block";};
+  const limpiarEstado=()=>{estado.textContent="";estado.style.display="none";};
+
+  video.onplaying=limpiarEstado;
+  video.onwaiting=()=>informar("Cargando transmisión en vivo…");
+  video.onerror=()=>{
+    const err=video.error;
+    console.error("Shot TV error de video:",err?{code:err.code,message:err.message}:"sin detalle");
+    informar("No se pudo reproducir la fuente. Puede estar inactiva o el servidor puede bloquear la reproducción desde Shot TV.");
+  };
+
+  const esTS=/\.ts(?:$|[?#])/i.test(fuente);
+  if(esTS){
+    informar("Conectando con la transmisión MPEG-TS…");
+    if(window.mpegts && window.mpegts.isSupported()){
+      try{
+        const mpegtsPlayer=window.mpegts.createPlayer(
+          {type:"mpegts",isLive:true,url:fuente},
+          {enableWorker:true,enableStashBuffer:false,stashInitialSize:128,liveBufferLatencyChasing:true}
+        );
+        window.__shotTvMpegts=mpegtsPlayer;
+        mpegtsPlayer.on(window.mpegts.Events.ERROR,(tipo,detalle,info)=>{
+          console.error("Shot TV MPEG-TS:",{tipo,detalle,info});
+          informar("No se pudo recibir el canal TS. Verifica que el enlace siga activo y que el servidor permita reproducirlo desde Shot TV.");
+        });
+        mpegtsPlayer.attachMediaElement(video);
+        mpegtsPlayer.load();
+        mpegtsPlayer.play().catch(()=>informar("Canal conectado. Pulsa ▶ para iniciar la reproducción."));
+      }catch(error){
+        console.error("Shot TV MPEG-TS:",error);
+        informar("No se pudo iniciar el reproductor MPEG-TS en este navegador.");
+      }
+      return;
+    }
+    informar("Este navegador no tiene soporte para reproducir MPEG-TS. Comprueba que mpegts.js esté cargado en index.html.");
+    return;
+  }
+
+  if(esHLS){
+    informar("Conectando con el canal en vivo…");
+
+    if(window.Hls && window.Hls.isSupported()){
+      const hls=new window.Hls({enableWorker:true,maxBufferLength:30,lowLatencyMode:false});
+      window.__shotTvHls=hls;
+      hls.on(window.Hls.Events.ERROR,(evento,datos)=>{
+        if(!datos) return;
+        console.error("Shot TV HLS:",{
+          type:datos.type,
+          details:datos.details,
+          fatal:datos.fatal,
+          response:datos.response||null,
+          url:datos.url||fuente
+        });
+        if(!datos.fatal) return;
+        if(datos.type===window.Hls.ErrorTypes.NETWORK_ERROR){
+          informar("No se puede obtener la transmisión. Revisa si el enlace sigue activo o si el servidor permite conexiones desde Shot TV.");
+          try{hls.startLoad();}catch(e){}
+        }else if(datos.type===window.Hls.ErrorTypes.MEDIA_ERROR){
+          informar("La fuente respondió, pero el video no se pudo decodificar. Intentando recuperar el reproductor…");
+          try{hls.recoverMediaError();}catch(e){
+            informar("No se pudo recuperar el video. Puede haber un problema con la transmisión.");
+          }
+        }else{
+          informar("No se pudo cargar el canal. Consulta la consola del navegador (F12) para ver el error HLS.");
+          try{hls.destroy();}catch(e){}
+          if(window.__shotTvHls===hls) window.__shotTvHls=null;
+        }
+      });
+      hls.on(window.Hls.Events.MEDIA_ATTACHED,()=>hls.loadSource(fuente));
+      hls.on(window.Hls.Events.MANIFEST_PARSED,()=>{
+        video.play().catch(()=>informar("Canal cargado. Pulsa ▶ en el reproductor para iniciar la reproducción."));
+      });
+      hls.on(window.Hls.Events.LEVEL_LOADED,()=>{
+        // La lista HLS se recibió; se quitará el mensaje cuando empiece el video.
+        console.info("Shot TV: lista HLS recibida.");
+      });
+      hls.attachMedia(video);
+      return;
+    }
+
+    if(video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")){
+      video.src=fuente;
+      video.load();
+      video.play().catch(()=>informar("Pulsa ▶ para iniciar el canal."));
+      return;
+    }
+
+    informar("No está disponible el soporte HLS en este navegador. Comprueba que Hls.js esté cargado en index.html.");
+    return;
+  }
+
+  video.src=fuente;
+  video.load();
+  video.play().catch(()=>informar("Pulsa ▶ para iniciar la reproducción."));
+}
+
+function tipoContenidoCast(url){
+  const u=String(url||"").toLowerCase();
+  if(/\.m3u8(?:$|[?#])/.test(u)) return "application/x-mpegurl";
+  if(/\.mp4(?:$|[?#])/.test(u)) return "video/mp4";
+  if(/\.webm(?:$|[?#])/.test(u)) return "video/webm";
+  if(/\.mov(?:$|[?#])/.test(u)) return "video/quicktime";
+  return "video/mp4";
+}
+
+function esYouTubeParaCast(url){
+  return !!detectarYouTube(url);
+}
+
+async function enviarPeliculaAPantalla(){
+  if(!peliculaActualParaCast){
+    alert("Primero abre una película.");
+    return;
+  }
+  if(!castInicializado || !window.cast || !cast.framework){
+    alert("La función de enviar a pantalla todavía no está disponible en este navegador.");
+    return;
+  }
+  const url=String(peliculaActualParaCast.url||"");
+  if(!url || esYouTubeParaCast(url)){
+    alert("Esta película usa YouTube. En esta primera versión la opción de enviar a pantalla funciona con enlaces directos MP4/HLS.");
+    return;
+  }
+
+  const context=cast.framework.CastContext.getInstance();
+  let session=context.getCurrentSession();
+
+  try{
+    if(!session){
+      await context.requestSession();
+      session=context.getCurrentSession();
+    }
+    if(!session) return;
+
+    const mediaInfo=new chrome.cast.media.MediaInfo(url,tipoContenidoCast(url));
+    mediaInfo.streamType=chrome.cast.media.StreamType.BUFFERED;
+    mediaInfo.metadata=new chrome.cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.title=String(peliculaActualParaCast.titulo||"Shot TV");
+    if(peliculaActualParaCast.portada){
+      mediaInfo.metadata.images=[new chrome.cast.Image(String(peliculaActualParaCast.portada))];
+    }
+
+    const request=new chrome.cast.media.LoadRequest(mediaInfo);
+    const video=$("player");
+    if(video && Number.isFinite(video.currentTime) && video.currentTime>0){
+      request.currentTime=video.currentTime;
+    }
+
+    await session.loadMedia(request);
+    if(video) video.pause();
+  }catch(error){
+    console.error("Error enviando película a pantalla:",error);
+    alert("No se pudo enviar la película a la pantalla. Verifica que la TV/Chromecast esté disponible y que el enlace de la película sea accesible.");
+  }
+}
+
+window.inicializarShotTvCast=function(){
+  if(castInicializado || !window.cast || !cast.framework) return;
+  try{
+    const context=cast.framework.CastContext.getInstance();
+    context.setOptions({
+      receiverApplicationId:chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+      autoJoinPolicy:chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+    });
+    context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,event=>{
+      if(event.sessionState===cast.framework.SessionState.SESSION_STARTED || event.sessionState===cast.framework.SessionState.SESSION_RESUMED){
+        if(peliculaActualParaCast){
+          enviarPeliculaAPantalla();
+        }
+      }
+    });
+    castInicializado=true;
+  }catch(error){
+    console.error("No se pudo inicializar Google Cast:",error);
+  }
+};
+
+if(window.__shotTvCastAvailable){
+  window.inicializarShotTvCast();
+}
+
+// --- Suscripciones Shot TV ---
+const SHOTTV_CLIP_URL = "https://pago.clip.mx/v3/d6de6147-2740-493a-9995-13da93615d2a";
+
+async function obtenerPruebaActiva(){
+  if(!usuario) return false;
+
+  const {data,error}=await db
+    .from("shottv_pruebas")
+    .select("fecha_vencimiento")
+    .eq("user_id",usuario.id)
+    .eq("estado","activa")
+    .gt("fecha_vencimiento",new Date().toISOString())
+    .order("fecha_vencimiento",{ascending:false})
+    .limit(1);
+
+  if(error){
+    console.warn("No se pudo comprobar la prueba gratuita:",error);
+    return false;
+  }
+
+  return Array.isArray(data) && data.length>0;
+}
+
+async function obtenerSuscripcionActiva(){
+  if(!usuario) return false;
+
+  // El administrador conserva el acceso sin suscripción.
+  try{
+    const {data:esAdmin,error:errorAdmin}=await db.rpc("is_admin");
+    if(!errorAdmin && esAdmin===true) return true;
+  }catch(error){
+    console.warn("No se pudo comprobar el rol administrativo:",error);
+  }
+
+  const {data,error}=await db
+    .from("shottv_suscripciones")
+    .select("estado, fecha_vencimiento")
+    .eq("user_id",usuario.id)
+    .eq("estado","activa")
+    .gt("fecha_vencimiento",new Date().toISOString())
+    .limit(1);
+
+  if(error){
+    console.error("Error al consultar la suscripción:",error);
+    return null;
+  }
+
+  // Una prueba gratuita activa también permite el acceso.
+  if(Array.isArray(data) && data.length>0) return true;
+
+  return await obtenerPruebaActiva();
+}
+
+function mostrarAvisoSuscripcion(){
+  let aviso=$("avisoSuscripcion");
+  if(!aviso){
+    aviso=document.createElement("div");
+    aviso.id="avisoSuscripcion";
+    aviso.style.cssText="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:10px;background:rgba(0,0,0,.88);overflow:hidden;box-sizing:border-box;";
+    aviso.innerHTML=`
+      <div style="box-sizing:border-box;width:100%;max-width:430px;max-height:calc(100dvh - 20px);overflow-y:auto;overflow-x:hidden;padding:18px;border-radius:16px;background:#171717;color:#fff;text-align:center;font-family:Arial,sans-serif;">
+        <button id="cerrarAvisoSuscripcion" type="button" aria-label="Cerrar" style="float:right;background:none;color:#fff;border:0;font-size:22px;cursor:pointer;">✕</button>
+        <h2 style="margin:4px 0 10px;">¡Desbloquea todo Shot TV!</h2>
+        <p style="margin:8px 0 12px;">Disfruta de tus películas favoritas, sin interrupciones y sin anuncios.</p>
+        <h2 style="margin:10px 0 12px;">$35 MXN al mes</h2>
+        <p id="estadoAvisoSuscripcion" role="status" style="margin:10px 0;padding:0 2px;overflow-wrap:anywhere;">Inicia sesión o crea una cuenta para continuar.</p>
+        <input id="correoSuscripcion" type="email" placeholder="Tu correo electrónico" autocomplete="email" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
+        <input id="claveSuscripcion" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="current-password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border-radius:8px;border:1px solid #555;">
+        <button id="entrarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:10px;border:0;border-radius:8px;cursor:pointer;">Iniciar sesión</button>
+        <button id="crearCuentaSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;border:0;border-radius:8px;cursor:pointer;">Crear cuenta</button>
+        <button id="pagarSuscripcion" type="button" style="width:100%;padding:12px;margin-top:8px;background:#e5b526;color:#111;border:0;border-radius:8px;cursor:pointer;">🎬 Suscríbete ahora</button>
+        <p style="font-size:12px;color:#bbb;">Después del pago, la suscripción debe ser confirmada para habilitar el acceso.</p>
+      </div>`;
+    document.body.appendChild(aviso);
+
+    $("cerrarAvisoSuscripcion").onclick=()=>aviso.remove();
+    $("entrarSuscripcion").onclick=async()=>{
+      const email=$("correoSuscripcion").value.trim();
+      const password=$("claveSuscripcion").value;
+      const estado=$("estadoAvisoSuscripcion");
+      if(!email||!password){estado.textContent="Escribe tu correo y contraseña.";return;}
+      const boton=$("entrarSuscripcion");
+      boton.disabled=true; estado.textContent="Iniciando sesión...";
+      const {error}=await db.auth.signInWithPassword({email,password});
+      boton.disabled=false;
+      if(error){estado.textContent="No se pudo iniciar sesión. Revisa tus datos y confirma tu correo si es necesario.";return;}
+      estado.textContent="Sesión iniciada. Comprobando el pago existente de Clip...";
+      let resultadoConciliacion = null;
+      try {
+        // Consulta el pago de prueba ya registrado. Esta llamada NO crea un cobro nuevo.
+        const { data, error: errorConciliacion } = await db.functions.invoke("conciliar-pago", {
+          body: {}
+        });
+        if (errorConciliacion) {
+          console.warn("No se pudo conciliar el pago existente:", errorConciliacion);
+        } else {
+          resultadoConciliacion = data;
+        }
+      } catch (errorConciliacion) {
+        console.warn("Error consultando el pago existente:", errorConciliacion);
+      }
+
+      const acceso=await obtenerSuscripcionActiva();
+      if(acceso===true){
+        estado.textContent="¡Suscripción activa! Ya puedes disfrutar de Shot TV.";
+        setTimeout(()=>{ if(aviso.isConnected) aviso.remove(); },1200);
+      } else if (resultadoConciliacion && resultadoConciliacion.checkout_status) {
+        const estadoCheckout = String(resultadoConciliacion.checkout_status).toUpperCase();
+        if (estadoCheckout === "CHECKOUT_CREATED" || estadoCheckout === "CHECKOUT_PENDING") {
+          estado.textContent="Tu pago aún no aparece como completado. Si todavía no has pagado, selecciona «Suscríbete ahora» para completar tu acceso. Si ya pagaste, vuelve a iniciar sesión o comprueba tu suscripción. Cuando Clip confirme el pago, Shot TV habilitará tu acceso automáticamente. No necesitas enviar comprobantes ni esperar una confirmación manual.";
+        } else {
+          estado.textContent="Clip aún está procesando la confirmación del pago. Si ya pagaste, no vuelvas a pagar; espera y vuelve a iniciar sesión para comprobar el acceso.";
+        }
+      } else if (resultadoConciliacion && resultadoConciliacion.error) {
+        const detalleError = String(resultadoConciliacion.error || "");
+        if (detalleError.toLowerCase().includes("no hay un pago mensual") || detalleError.toLowerCase().includes("no hay un pago") || detalleError.toLowerCase().includes("pending")) {
+          estado.textContent="Tu cuenta todavía no tiene un pago registrado. Selecciona «Suscríbete ahora» para continuar con el pago de $2 MXN al mes.";
+        } else {
+          estado.textContent="No pudimos comprobar el pago. Puedes intentarlo más tarde; si ya pagaste, no vuelvas a pagar.";
+          console.warn("Detalle de conciliación:", detalleError);
+        }
+      } else if(acceso===false){
+        estado.textContent="Sesión iniciada. Para desbloquear Shot TV, selecciona «Suscríbete ahora» y continúa al pago seguro de Clip.";
+      } else {
+        estado.textContent="No pudimos verificar la suscripción. Inténtalo nuevamente más tarde.";
+      }
+    };
+    $("crearCuentaSuscripcion").onclick=async()=>{
+      const email=$("correoSuscripcion").value.trim();
+      const password=$("claveSuscripcion").value;
+      const estado=$("estadoAvisoSuscripcion");
+      if(!email||password.length<6){estado.textContent="Escribe tu correo y una contraseña de al menos 6 caracteres.";return;}
+      const boton=$("crearCuentaSuscripcion");
+      boton.disabled=true;estado.textContent="Creando tu cuenta...";
+      const {error}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://shottv.github.io/shot-tv/"}});
+      boton.disabled=false;
+      estado.textContent=error?"No se pudo crear la cuenta. "+error.message:"Cuenta creada. Ahora inicia sesión y selecciona la opción Suscríbete ahora para desbloquear el acceso.";
+    };
+    $("pagarSuscripcion").onclick = async () => {
+      const boton = $("pagarSuscripcion");
+      const estado = $("estadoAvisoSuscripcion");
+      const { data: { session }, error: sessionError } = await db.auth.getSession();
+
+      if (sessionError || !session) {
+        estado.textContent = "Inicia sesión o crea una cuenta antes de suscribirte.";
+        return;
+      }
+
+      boton.disabled = true;
+      estado.textContent = "Generando tu enlace de pago seguro...";
+
+      try {
+        const { data, error } = await db.functions.invoke("clip-pagos", {
+          body: {},
+        });
+
+        if (error || !data || !data.payment_url) {
+          console.error("Error al generar pago:", error, data);
+          estado.textContent = data?.error || "No pudimos preparar el pago. Inténtalo de nuevo más tarde.";
+          boton.disabled = false;
+          return;
+        }
+
+        window.location.href = data.payment_url;
+      } catch (error) {
+        console.error("Error de conexión:", error);
+        estado.textContent = "Error de conexión. Inténtalo de nuevo.";
+        boton.disabled = false;
+      }
+    };
+  }
+}
+
+function mostrarPeliculasRelacionadas(peliculaActual){
+  if(!peliculaActual) return;
+
+  const modal=$("modal");
+  const playerWrap=$("playerWrap");
+  if(!modal || !playerWrap) return;
+
+  // Buscar el contenedor real de la ventana del reproductor.
+  const caja=modal.querySelector(".playerbox") || playerWrap.parentElement;
+  if(!caja) return;
+
+  let cont=document.getElementById("peliculasRelacionadas");
+  if(!cont){
+    cont=document.createElement("section");
+    cont.id="peliculasRelacionadas";
+  }
+
+  // IMPORTANTE: las recomendaciones deben estar dentro de la misma ventana modal,
+  // nunca como un elemento hermano del reproductor.
+  if(cont.parentElement!==caja){
+    caja.appendChild(cont);
+  }
+
+  cont.style.cssText="display:block;width:100%;box-sizing:border-box;margin:16px 0 0;padding:14px;background:#062d3a;border-radius:10px;color:#fff;";
+
+  const genero=String(peliculaActual.genero||"").trim().toLowerCase();
+  let relacionadas=peliculas.filter(p=>
+    Number(p.id)!==Number(peliculaActual.id) &&
+    genero &&
+    String(p.genero||"").toLowerCase()===genero
+  );
+
+  if(relacionadas.length<4){
+    const usadas=new Set(relacionadas.map(p=>Number(p.id)));
+    relacionadas=relacionadas.concat(
+      peliculas.filter(p=>Number(p.id)!==Number(peliculaActual.id) && !usadas.has(Number(p.id)))
+    );
+  }
+
+  relacionadas=relacionadas.slice(0,6);
+
+  if(!relacionadas.length){
+    cont.style.display="none";
+    return;
+  }
+
+  cont.innerHTML=`
+    <h3 style="margin:0 0 12px;font-size:18px;">🎬 También te puede gustar</h3>
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;">
+      ${relacionadas.map(p=>`
+        <button type="button" onclick="abrir(${Number(p.id)})" style="flex:0 0 105px;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer;padding:0;">
+          <img src="${esc(p.portada)}" alt="${esc(p.titulo)}" style="width:105px;height:155px;object-fit:cover;border-radius:7px;display:block;">
+          <span style="display:block;font-size:12px;font-weight:bold;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.titulo)}</span>
+        </button>
+      `).join("")}
+    </div>`;
+}
+async function abrir(id){
+  const m=peliculas.find(x=>Number(x.id)===Number(id));
+  if(!m)return;
+
+  const acceso=await obtenerSuscripcionActiva();
+  if(acceso===null){
+    alert("No pudimos verificar tu suscripción. Inténtalo nuevamente.");
+    return;
+  }
+  if(!acceso){
+    mostrarAvisoSuscripcion();
+    return;
+  }
+
+  const {error}=await db.rpc("incrementar_vista",{
+    p_pelicula_id:Number(m.id)
+  });
+
+  if(error){
+    console.error("No se pudo registrar la vista:",error);
+  }
+
+  if(typeof window.gtag === "function"){
+    window.gtag("event","movie_play",{
+      movie_id:String(m.id),
+      movie_title:String(m.titulo||""),
+      movie_year:String(m.año||""),
+      movie_genre:String(m.genero||"")
+    });
+  }
+
+  peliculaActualParaCast=m;
+  peliculaActualProgreso=m;
+  ultimoGuardadoProgreso=0;
+  $("ptitulo").textContent=m.titulo;
+  $("modal").classList.add("open");
+  mostrarPeliculasRelacionadas(m);
+
+  // Recuperar el punto donde el usuario dejó la película.
+  const progresoGuardado=await recuperarProgreso(m.id);
+
+  reproducirFuente(m.url);
+
+  // YouTube no permite leer el minuto de reproducción con el iframe actual.
+  // Para enlaces de video directos restauramos el progreso automáticamente.
+  const esYouTube=!!detectarYouTube(String(m.url||""));
+  if(!esYouTube && progresoGuardado>0){
+    restaurarProgresoEnVideo(progresoGuardado);
+  }
+}
+
+function alternarPantallaCompleta(){
+  const modal=$("modal");
+  const boton=$("pantalla");
+  const activa=modal.classList.toggle("custom-fullscreen");
+  boton.textContent=activa?"⛶":"⛶";
+  boton.title=activa?"Salir de pantalla completa":"Pantalla completa";
+  document.body.style.overflow=activa?"hidden":"";
+}
+
+async function cerrar(){
+  await guardarProgresoActual(true);
+  $("modal").classList.remove("custom-fullscreen");
+  document.body.style.overflow="";
+  limpiarReproductores();
+  peliculaActualParaCast=null;
+  peliculaActualProgreso=null;
+  cargarContinuarViendo();
+  const relacionadas=document.getElementById("peliculasRelacionadas");
+  if(relacionadas) relacionadas.style.display="none";
+  $("modal").classList.remove("open");
+}
+
+$("buscar").oninput=render;
+$("buscarNegocio").oninput=renderNegocios;
+$("filtroCategoria").onchange=renderNegocios;
+$("catalogoLink").onclick=abrirCatalogo;
+if($("netflixLink")) $("netflixLink").onclick=abrirNetflix;
+$("negociosLink").onclick=abrirNegocios;
+$("enVivoLink").onclick=abrirEnVivo;
+$("adminLink").onclick=abrirAdministracion;
+
+// Acceso discreto al panel de administración: 5 clics rápidos sobre el logo.
+// El enlace "Administrar" permanece oculto para los visitantes.
+let adminLogoClicks=0;
+let adminLogoTimer=null;
+$("shotTvLogo").onclick=()=>{
+  adminLogoClicks++;
+  clearTimeout(adminLogoTimer);
+  adminLogoTimer=setTimeout(()=>{adminLogoClicks=0;},2500);
+  if(adminLogoClicks>=5){
+    adminLogoClicks=0;
+    abrirAdministracion();
+  }
+};
+$("abrirRegistroNegocio").onclick=abrirRegistroNegocio;
+$("cerrarRegistroNegocio").onclick=cerrarRegistroNegocio;
+$("enviarRegistroNegocio").onclick=enviarRegistroPorWhatsApp;
+
+$("loginBtn").onclick=iniciarSesion;
+$("logoutBtn").onclick=cerrarSesion;
+$("agregar").onclick=agregarPelicula;
+$("guardarEdicion").onclick=guardarEdicion;
+$("guardarAd").onclick=guardarPublicidad;
+$("guardarNegocio").onclick=guardarNegocio;
+$("guardarCanal").onclick=guardarCanalEnVivo;
+$("buscarCanal").oninput=renderCanalesEnVivo;
+$("refrescarSolicitudes").onclick=cargarControlSolicitudes;
+$("cancelarNegocio").onclick=()=>{limpiarFormularioNegocio();mensaje("negocioAdminMsg","");};
+$("cerrarEdicion").onclick=cerrarEdicion;
+$("editModal").onclick=e=>{if(e.target===$("editModal"))cerrarEdicion()};
+$("cerrar").onclick=cerrar;
+$("modal").onclick=e=>{if(e.target===$("modal"))cerrar()};
+
+const shotTvVideoProgreso=$("player");
+if(shotTvVideoProgreso){
+  shotTvVideoProgreso.addEventListener("timeupdate",()=>guardarProgresoActual(false));
+  shotTvVideoProgreso.addEventListener("pause",()=>guardarProgresoActual(true));
+  shotTvVideoProgreso.addEventListener("ended",()=>guardarProgresoActual(true));
+}
+window.addEventListener("beforeunload",()=>{ guardarProgresoActual(true); });
+$("cerrarFotoNegocio").onclick=cerrarFotoNegocio;
+$("businessPhotoModal").onclick=e=>{if(e.target===$("businessPhotoModal"))cerrarFotoNegocio()};
+instalarMenuCuenta();
+if(db){
+  cargarPublicidad();
+  cargarNegocios();
+  setTimeout(()=>cargarContinuarViendo(),800);
+}
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("modal").classList.contains("custom-fullscreen")){ alternarPantallaCompleta(); return; }
+  if(e.key==="Escape"&&$("modal").classList.contains("open"))cerrar();
+  if(e.key==="Escape"&&$("businessPhotoModal").classList.contains("open"))cerrarFotoNegocio();
+  if(e.key==="Escape"&&$("editModal").classList.contains("open"))cerrarEdicion();
+  if(e.key==="Enter"&&document.activeElement===$("loginPassword"))iniciarSesion();
+});
+
+if(db){
+db.auth.getSession().then(async ({data})=>{
+  usuario=data.session?.user||null;
+  instalarMenuCuenta();
+  actualizarVisibilidadCuenta();
+
+  // Al volver de Clip, intenta conciliar el checkout mensual pendiente.
+  // Esta llamada consulta el pago existente y NO crea un nuevo cobro.
+  if(usuario){
+    try{
+      const {data:resultadoPago,error:errorPago}=await db.functions.invoke("conciliar-pago",{
+        body:{}
+      });
+      if(errorPago){
+        console.warn("No se pudo comprobar automáticamente el pago de Clip:",errorPago);
+      }else if(resultadoPago?.ok){
+        console.info("Shot TV: pago mensual confirmado y suscripción actualizada.");
+      }else if(resultadoPago?.checkout_status){
+        console.info("Shot TV: Clip todavía no confirma el pago:",resultadoPago.checkout_status);
+      }
+    }catch(errorPago){
+      console.warn("No se pudo consultar el pago al regresar a Shot TV:",errorPago);
+    }
+  }
+
+  await verificarRolAdministrador();
+  mostrarAdmin();
+  await cargarPeliculas();
+  await cargarContinuarViendo();
+  iniciarVerificacionPruebaShotTV();
+});
+
+db.auth.onAuthStateChange((_event,session)=>{
+  usuario=session?.user||null;
+  actualizarVisibilidadCuenta();
+  if(usuario) iniciarVerificacionPruebaShotTV();
+  esAdmin=false;
+  mostrarAdmin();
+  // Verify the role after the auth callback completes.
+  setTimeout(async ()=>{
+    await verificarRolAdministrador();
+    mostrarAdmin();
+    await cargarContinuarViendo();
+  },0);
+});
+}
+
+// Al abrir o recargar Shot TV siempre mostramos el inicio público.
+// El acceso administrativo se realiza únicamente con 5 clics sobre el logo.
+history.replaceState(null,"",location.pathname+location.search);
+$("admin").classList.add("hidden");
+$("catalogo").classList.remove("hidden");
+$("negocios").classList.add("hidden");
+$("enVivo").classList.add("hidden");
+requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
+
+
+// Inicializar la función "Mi lista" sin modificar el resto de Shot TV.
+document.addEventListener("DOMContentLoaded", async () => {
+  try{
+    await new Promise(resolve => setTimeout(resolve, 300));
+    if(typeof usuario !== "undefined" && usuario){
+      await cargarMiLista();
+      render();
+    }
+    crearBotonMiLista();
+  }catch(e){
+    console.error("No se pudo inicializar Mi lista:", e);
+  }
+});
+
+
+
+
+
+
+document.addEventListener("DOMContentLoaded",()=>{
+  const cast=$("enviarPantalla");
+  const pantalla=$("pantalla");
+  if(cast) cast.style.display="none";
+  if(pantalla) pantalla.style.display="none";
+
+  const estilo=document.createElement("style");
+  estilo.textContent=`
+    #modal.open { overflow-y:auto !important; }
+    #peliculasRelacionadas { clear:both; }
+    @media(max-width:760px){
+      #modal.open { padding:8px !important; align-items:flex-start !important; }
+      #modal.open .playerbox{
+        width:100% !important;
+        max-width:100% !important;
+        margin:8px auto !important;
+        box-sizing:border-box !important;
+      }
+      #peliculasRelacionadas{
+        margin-top:14px !important;
+      }
+      #continuarViendo{
+        margin:14px 0 20px !important;
+        padding:12px !important;
+        border-radius:10px !important;
+      }
+      #continuarViendo h2{
+        font-size:19px !important;
+        margin-bottom:10px !important;
+      }
+      #continuarViendo .continuar-viendo-fila{
+        gap:10px !important;
+        padding-bottom:4px !important;
+      }
+      #continuarViendo .continuar-viendo-fila button{
+        flex-basis:118px !important;
+        min-width:118px !important;
+      }
+      #continuarViendo .continuar-viendo-fila img{
+        width:118px !important;
+        height:171px !important;
+      }
+    }
+  `;
+  document.head.appendChild(estilo);
+});
+
+
+// ============================================================
+// AVISO DE PRUEBA PRÓXIMA A TERMINAR
+// ============================================================
+async function verificarAvisoPruebaShotTV(){
+  try{
+    if(!usuario?.id || document.getElementById("avisoPruebaShotTV")) return;
+
+    const [suscripcionRes,pruebaRes]=await Promise.all([
+      db.from("shottv_suscripciones").select("fecha_vencimiento").eq("user_id",usuario.id).eq("estado","activa").order("fecha_vencimiento",{ascending:false}).limit(1),
+      db.from("shottv_pruebas").select("estado,fecha_vencimiento").eq("user_id",usuario.id).order("fecha_vencimiento",{ascending:false}).limit(1)
+    ]);
+
+    if(suscripcionRes.error || pruebaRes.error){
+      console.warn("Shot TV: no se pudo consultar la prueba.",suscripcionRes.error||pruebaRes.error);
+      return;
+    }
+
+    const suscripcion=(suscripcionRes.data||[])[0];
+    if(suscripcion && new Date(suscripcion.fecha_vencimiento).getTime()>Date.now()) return;
+
+    const prueba=(pruebaRes.data||[])[0];
+    if(!prueba || prueba.estado!=="activa") return;
+
+    const faltanMs=new Date(prueba.fecha_vencimiento).getTime()-Date.now();
+    const limite=6*60*60*1000;
+    if(!Number.isFinite(faltanMs) || faltanMs<=0 || faltanMs>limite) return;
+
+    const minutosTotales=Math.max(1,Math.floor(faltanMs/60000));
+    const horas=Math.floor(minutosTotales/60);
+    const minutos=minutosTotales%60;
+    const tiempo=horas>0 ? `${horas} hora${horas===1?"":"s"}${minutos?` y ${minutos} minuto${minutos===1?"":"s"}`:""}` : `${minutos} minuto${minutos===1?"":"s"}`;
+
+    const aviso=document.createElement("div");
+    aviso.id="avisoPruebaShotTV";
+    aviso.style.cssText="position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(0,0,0,.86);font-family:Arial,sans-serif;";
+    aviso.innerHTML=`<div style="width:100%;max-width:430px;box-sizing:border-box;padding:24px 20px;border-radius:18px;background:#062332;border:1px solid #0b607a;color:#fff;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.55);">
+      <div style="font-size:40px;margin-bottom:8px;">⏰</div>
+      <h2 style="margin:0 0 12px;font-size:23px;">Tu prueba está por terminar</h2>
+      <p style="margin:0 0 12px;line-height:1.5;color:#d7e8ee;">Te quedan aproximadamente <strong>${tiempo}</strong> de acceso gratuito.</p>
+      <p style="margin:0 0 20px;line-height:1.5;color:#b9d0d9;">Suscríbete y continúa disfrutando de todo el contenido de Shot TV.</p>
+      <button id="suscribirseDesdePrueba" type="button" style="width:100%;padding:14px;border:0;border-radius:10px;background:#ff1231;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;">🎬 Continuar con mi suscripción · $35 al mes</button>
+      <button id="cerrarAvisoPrueba" type="button" style="margin-top:12px;border:0;background:transparent;color:#b9d0d9;font-size:14px;cursor:pointer;">Seguir disfrutando mi prueba</button>
+    </div>`;
+    document.body.appendChild(aviso);
+    document.getElementById("cerrarAvisoPrueba").onclick=()=>aviso.remove();
+    document.getElementById("suscribirseDesdePrueba").onclick=()=>{aviso.remove();if(typeof mostrarAvisoSuscripcion==="function")mostrarAvisoSuscripcion();};
+  }catch(error){
+    console.warn("Shot TV: error al verificar el aviso de prueba:",error);
+  }
+}
+
+function iniciarVerificacionPruebaShotTV(){
+  setTimeout(verificarAvisoPruebaShotTV,800);
+  setTimeout(verificarAvisoPruebaShotTV,2500);
+  setTimeout(verificarAvisoPruebaShotTV,6000);
+}
