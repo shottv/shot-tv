@@ -31,15 +31,27 @@ function esc(s){
 async function verificarRolAdministrador(){
   if(!usuario){
     esAdmin = false;
-    return;
+    return false;
   }
   try{
-    const {data, error} = await db.rpc("is_admin");
-    esAdmin = !error && data === true;
-    if(error) console.warn("No se pudo verificar el rol administrativo:", error);
+    const {data, error} = await db
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", usuario.id)
+      .limit(1);
+
+    if(!error && Array.isArray(data) && data.length > 0){
+      esAdmin = true;
+      return true;
+    }
+
+    const rpc = await db.rpc("is_admin");
+    esAdmin = !rpc.error && rpc.data === true;
+    return esAdmin;
   }catch(error){
     esAdmin = false;
     console.warn("Error verificando administrador:", error);
+    return false;
   }
 }
 
