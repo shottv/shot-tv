@@ -2581,132 +2581,79 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.head.appendChild(estilo);
 });
 
-
 // ============================================================
 // AVISO DE VENCIMIENTO DE PRUEBA GRATUITA
-// Se ejecuta después de confirmar la sesión directamente con Supabase.
+// Integrado con la sesión real de Shot TV.
 // ============================================================
-async function verificarAvisoFinPrueba(){
+async function verificarAvisoFinPruebaShotTV(){
   try{
-    const { data: sesionData, error: sesionError } = await db.auth.getSession();
-    if(sesionError || !sesionData || !sesionData.session) return;
-
-    const userId = sesionData.session.user.id;
-    const ahora = new Date().toISOString();
-
-    // Consultar directamente la prueba activa del usuario.
-    const { data, error } = await db
-      .from("shottv_pruebas")
-      .select("fecha_vencimiento, estado")
-      .eq("user_id", userId)
-      .eq("estado", "activa")
-      .gt("fecha_vencimiento", ahora)
-      .order("fecha_vencimiento", { ascending:false })
-      .limit(1);
-
-    if(error){
-      console.warn("Shot TV: no se pudo comprobar el vencimiento:", error);
-      return;
+    let usuarioActual = (typeof usuario !== "undefined" && usuario && usuario.id) ? usuario : null;
+    if(!usuarioActual){
+      const {data:sesionData,error:sesionError} = await db.auth.getSession();
+      if(sesionError || !sesionData || !sesionData.session) return;
+      usuarioActual = sesionData.session.user;
     }
 
-    if(!data || !data.length || !data[0].fecha_vencimiento) return;
+    const {data:pruebas,error} = await db
+      .from("shottv_pruebas")
+      .select("fecha_vencimiento, estado")
+      .eq("user_id", usuarioActual.id)
+      .eq("estado", "activa")
+      .order("fecha_vencimiento", {ascending:false})
+      .limit(1);
 
-    const vencimiento = new Date(data[0].fecha_vencimiento);
+    if(error || !Array.isArray(pruebas) || !pruebas.length) return;
+
+    const vencimiento = new Date(pruebas[0].fecha_vencimiento);
     const faltanMs = vencimiento.getTime() - Date.now();
     const seisHoras = 6 * 60 * 60 * 1000;
 
     if(faltanMs <= 0 || faltanMs > seisHoras) return;
+    if(document.getElementById("avisoFinPruebaShotTV")) return;
 
-    const claveAviso = "shotTvAvisoPrueba_" + userId + "_" + vencimiento.getTime();
-
-    // Solo evitar duplicados mientras el aviso ya está visible.
-    if(document.getElementById("avisoFinPrueba")) return;
-
-    const horas = Math.floor(faltanMs / 3600000);
-    const minutos = Math.max(1, Math.floor((faltanMs % 3600000) / 60000));
-
+    const totalMinutos = Math.max(1, Math.floor(faltanMs / 60000));
+    const horas = Math.floor(totalMinutos / 60);
+    const minutos = totalMinutos % 60;
     const tiempo = horas > 0
-      ? `${horas} hora${horas === 1 ? "" : "s"} y ${minutos} minuto${minutos === 1 ? "" : "s"}`
+      ? `${horas} hora${horas === 1 ? "" : "s"}${minutos ? " y " + minutos + " minuto" + (minutos === 1 ? "" : "s") : ""}`
       : `${minutos} minuto${minutos === 1 ? "" : "s"}`;
 
     const aviso = document.createElement("div");
-    aviso.id = "avisoFinPrueba";
-    aviso.style.cssText = `
-      position:fixed; inset:0; z-index:100000;
-      display:flex; align-items:center; justify-content:center;
-      padding:16px; box-sizing:border-box;
-      background:rgba(0,0,0,.82);
-    `;
+    aviso.id = "avisoFinPruebaShotTV";
+    aviso.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(0,0,0,.86);font-family:Arial,sans-serif;";
 
     aviso.innerHTML = `
-      <div style="
-        width:min(440px,100%);
-        box-sizing:border-box;
-        background:#062332;
-        color:#fff;
-        border:1px solid #0b607a;
-        border-radius:18px;
-        padding:26px 22px;
-        text-align:center;
-        box-shadow:0 20px 60px rgba(0,0,0,.45);
-        font-family:Arial,sans-serif;
-      ">
+      <div style="width:100%;max-width:440px;box-sizing:border-box;background:#062332;color:#fff;border:1px solid #0b607a;border-radius:18px;padding:26px 22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.55);">
         <div style="font-size:42px;margin-bottom:8px;">⏰</div>
         <h2 style="margin:0 0 12px;font-size:24px;">Tu prueba está por terminar</h2>
-        <p style="margin:0 0 10px;line-height:1.55;color:#d7e8ee;">
-          Te quedan aproximadamente <strong style="color:#fff;">${tiempo}</strong> de acceso gratuito.
-        </p>
-        <p style="margin:0 0 20px;line-height:1.55;color:#a9c4ce;">
-          Suscríbete ahora y continúa disfrutando de todo el contenido de Shot TV.
-        </p>
-        <button id="continuarSuscripcionPrueba" type="button" style="
-          width:100%; padding:14px; border:0; border-radius:10px;
-          background:#ff1231; color:#fff; font-weight:bold;
-          font-size:16px; cursor:pointer;
-        ">🎬 Continuar con mi suscripción · $35 al mes</button>
-        <button id="cerrarAvisoFinPrueba" type="button" style="
-          margin-top:12px; background:transparent; border:0;
-          color:#b9d0d9; cursor:pointer; font-size:14px;
-        ">Seguir disfrutando mi prueba</button>
-      </div>
-    `;
+        <p style="margin:0 0 10px;line-height:1.55;color:#d7e8ee;">Te quedan aproximadamente <strong style="color:#fff;">${tiempo}</strong> de acceso gratuito.</p>
+        <p style="margin:0 0 20px;line-height:1.55;color:#a9c4ce;">Suscríbete ahora y continúa disfrutando de todo el contenido de Shot TV.</p>
+        <button id="continuarSuscripcionPruebaShotTV" type="button" style="width:100%;padding:14px;border:0;border-radius:10px;background:#ff1231;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;">🎬 Continuar con mi suscripción · $35 al mes</button>
+        <button id="cerrarAvisoFinPruebaShotTV" type="button" style="margin-top:12px;background:transparent;border:0;color:#b9d0d9;cursor:pointer;font-size:14px;">Seguir disfrutando mi prueba</button>
+      </div>`;
 
     document.body.appendChild(aviso);
-
-    document.getElementById("cerrarAvisoFinPrueba").onclick = () => {
+    document.getElementById("cerrarAvisoFinPruebaShotTV").onclick = () => aviso.remove();
+    document.getElementById("continuarSuscripcionPruebaShotTV").onclick = () => {
       aviso.remove();
+      if(typeof mostrarAvisoSuscripcion === "function") mostrarAvisoSuscripcion();
+      else if(typeof SHOTTV_CLIP_URL !== "undefined" && SHOTTV_CLIP_URL) window.open(SHOTTV_CLIP_URL, "_blank");
     };
-
-    document.getElementById("continuarSuscripcionPrueba").onclick = () => {
-      aviso.remove();
-
-      if(typeof mostrarAvisoSuscripcion === "function"){
-        mostrarAvisoSuscripcion();
-      }else if(typeof SHOTTV_CLIP_URL !== "undefined" && SHOTTV_CLIP_URL){
-        window.open(SHOTTV_CLIP_URL, "_blank");
-      }else{
-        alert("Comunícate con Shot TV para continuar con tu suscripción.");
-      }
-    };
-
   }catch(error){
-    console.warn("Shot TV: error verificando aviso de prueba:", error);
+    console.warn("Shot TV: error al verificar el aviso de prueba:", error);
   }
 }
 
-// Ejecutar después de que la aplicación haya tenido tiempo de restaurar la sesión.
 document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(verificarAvisoFinPrueba, 3500);
-  setInterval(verificarAvisoFinPrueba, 10 * 60 * 1000);
+  setTimeout(verificarAvisoFinPruebaShotTV, 3000);
+  setTimeout(verificarAvisoFinPruebaShotTV, 6000);
+  setInterval(verificarAvisoFinPruebaShotTV, 5 * 60 * 1000);
 });
 
-// También comprobar cuando Supabase detecte un inicio o restauración de sesión.
 try{
   db.auth.onAuthStateChange((evento) => {
-    if(evento === "SIGNED_IN" || evento === "INITIAL_SESSION" || evento === "TOKEN_REFRESHED"){
-      setTimeout(verificarAvisoFinPrueba, 1000);
+    if(evento === "INITIAL_SESSION" || evento === "SIGNED_IN" || evento === "TOKEN_REFRESHED"){
+      setTimeout(verificarAvisoFinPruebaShotTV, 1000);
     }
   });
-}catch(error){
-  console.warn("Shot TV: no se pudo registrar el detector de sesión:", error);
-}
+}catch(error){}
