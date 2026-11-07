@@ -141,19 +141,42 @@ function mensaje(id, texto, error=false){
 }
 
 async function cargarPeliculas(){
-  $("estado").textContent="Cargando catálogo...";
-  const {data,error}=await db.from("peliculas")
-    .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
-    .order("orden",{ascending:true,nullsFirst:false})
-    .order("created_at",{ascending:true});
-  if(error){
-    console.error(error);
-    $("estado").textContent="No se pudo cargar el catálogo.";
-    return;
+  const estado=$("estado");
+  if(estado) estado.textContent="Cargando catálogo...";
+
+  try{
+    // En algunos navegadores de Smart TV una solicitud puede quedar esperando
+    // indefinidamente. El tiempo máximo evita que la pantalla permanezca bloqueada.
+    const consulta=db.from("peliculas")
+      .select("id,created_at,titulo,año,genero,portada,url,orden,destacada")
+      .order("orden",{ascending:true,nullsFirst:false})
+      .order("created_at",{ascending:true});
+
+    const limite=new Promise((_,reject)=>{
+      setTimeout(()=>reject(new Error("La conexión al catálogo tardó demasiado.")),15000);
+    });
+
+    const resultado=await Promise.race([consulta,limite]);
+    const data=resultado.data;
+    const error=resultado.error;
+
+    if(error) throw error;
+
+    peliculas=data||[];
+    render();
+
+    // Esta sección es secundaria: si falla, el catálogo principal permanece visible.
+    try{
+      await cargarNetflixVisto();
+    }catch(errorSecundario){
+      console.warn("No se pudieron cargar las películas destacadas:",errorSecundario);
+    }
+  }catch(error){
+    console.error("Error al cargar el catálogo:",error);
+    if(estado){
+      estado.textContent="No se pudo cargar el catálogo. Revisa tu conexión e inténtalo nuevamente.";
+    }
   }
-  peliculas=data||[];
-  render();
-  await cargarNetflixVisto();
 }
 
 async function cargarNetflixVisto(){
@@ -2515,6 +2538,12 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Enter"&&document.activeElement===$("loginPassword"))iniciarSesion();
 });
 
+// El catálogo público inicia de forma independiente de la sesión.
+// Así, una verificación de cuenta lenta o incompatible no bloquea las películas.
+Promise.resolve().then(()=>cargarPeliculas()).catch(error=>{
+  console.error("No se pudo iniciar la carga del catálogo:",error);
+});
+
 db.auth.getSession().then(async ({data})=>{
   usuario=data.session?.user||null;
   instalarMenuCuenta();
@@ -2541,7 +2570,7 @@ db.auth.getSession().then(async ({data})=>{
 
   await verificarRolAdministrador();
   mostrarAdmin();
-  await cargarPeliculas();
+  // El catálogo ya se inició de forma independiente para no depender de la sesión.
   await cargarContinuarViendo();
   iniciarVerificacionPruebaShotTV();
 });
