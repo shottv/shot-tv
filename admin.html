@@ -231,16 +231,82 @@
     </div>
   </main>
 
-  <!-- IMPORTANTE: Reemplazaremos estas dos líneas con los datos
-       de conexión que ya utiliza tu proyecto. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
-    /*
-      PASO SIGUIENTE:
-      Aquí conectaremos esta página con tu mismo proyecto de Supabase.
-      No coloques todavía nuevas claves si no es necesario.
-    */
+    const SUPABASE_URL = "https://akpsjzcuimlwvehbammq.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+    const mensaje = document.getElementById("mensaje");
+    const contenido = document.getElementById("contenido");
+
+    function mostrarError(texto) {
+      mensaje.textContent = texto;
+      mensaje.classList.add("error");
+      mensaje.style.display = "block";
+      contenido.style.display = "none";
+    }
+
+    async function cargarPanel() {
+      try {
+        const { data: sessionData, error: sessionError } = await db.auth.getSession();
+        if (sessionError) throw sessionError;
+
+        if (!sessionData.session) {
+          mostrarError("🔐 Debes iniciar sesión con tu cuenta de administrador.");
+          return;
+        }
+
+        const { data: esAdmin, error: adminError } = await db.rpc("es_admin");
+        if (adminError) throw adminError;
+
+        if (esAdmin !== true) {
+          mostrarError("⛔ No tienes permiso para acceder al Panel de Administrador.");
+          return;
+        }
+
+        const { data: estadisticas, error: estadisticasError } =
+          await db.rpc("obtener_estadisticas_admin");
+        if (estadisticasError) throw estadisticasError;
+
+        document.getElementById("usuarios").textContent = estadisticas?.usuarios ?? 0;
+        document.getElementById("pruebas").textContent = estadisticas?.pruebas_activas ?? 0;
+        document.getElementById("suscripciones").textContent = estadisticas?.suscripciones_activas ?? 0;
+        document.getElementById("peliculas").textContent = estadisticas?.peliculas ?? 0;
+
+        const { data: peliculas, error: peliculasError } =
+          await db.rpc("obtener_peliculas_mas_vistas");
+        if (peliculasError) throw peliculasError;
+
+        const lista = document.getElementById("peliculasMasVistas");
+
+        if (!peliculas || peliculas.length === 0) {
+          lista.innerHTML = "<p style='color:#b4c8d1'>Aún no hay películas para mostrar.</p>";
+        } else {
+          lista.innerHTML = peliculas.map((pelicula, indice) => `
+            <article class="pelicula">
+              ${pelicula.portada
+                ? `<img src="${pelicula.portada}" alt="${pelicula.titulo || "Película"}" onerror="this.style.display='none'">`
+                : `<div style="height:190px;display:flex;align-items:center;justify-content:center;color:#9eb5c1">Sin portada</div>`}
+              <div class="pelicula-info">
+                <div class="pelicula-titulo">${indice + 1}. ${pelicula.titulo || "Sin título"}</div>
+                <div class="pelicula-vistas">👁️ ${pelicula.vistas ?? 0} vistas</div>
+              </div>
+            </article>
+          `).join("");
+        }
+
+        mensaje.style.display = "none";
+        contenido.style.display = "block";
+
+      } catch (error) {
+        console.error("Error cargando el panel:", error);
+        mostrarError("⚠️ No fue posible cargar el Panel de Administrador.");
+      }
+    }
+
+    cargarPanel();
   </script>
 
 </body>
