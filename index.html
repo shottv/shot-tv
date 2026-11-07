@@ -33,6 +33,38 @@
   background:#475569
 }
 </style>
+
+<style>
+.trial-banner{
+  max-width:900px;
+  margin:0 auto 24px;
+  padding:18px 20px;
+  text-align:center;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:12px;
+  background:rgba(255,255,255,.04);
+}
+.trial-banner h2{
+  margin:0 0 8px;
+  font-size:1.25rem;
+}
+.trial-banner p{
+  margin:0 0 14px;
+}
+.trial-btn{
+  display:inline-block;
+  padding:11px 18px;
+  border-radius:8px;
+  text-decoration:none;
+  font-weight:700;
+  background:#e50914;
+  color:#fff;
+}
+.trial-btn:hover{
+  filter:brightness(1.1);
+}
+</style>
+
 </head>
 
 <body>
@@ -45,7 +77,6 @@
     <a href="#netflix" id="netflixLink">🆕 Netflix<br>➕ Visto</a>
     <a href="#negocios" id="negociosLink">🏪 Negocios</a>
     <a href="#enVivo" id="enVivoLink">📺 En vivo</a>
-    <a href="login.html" id="iniciarSesionLink">🔐 Iniciar sesión</a>
     <a href="#admin" id="adminLink" class="admin-nav-hidden" aria-hidden="true" tabindex="-1">Administrar</a>
   </nav>
 
@@ -57,6 +88,15 @@
 </header>
 
 <main>
+
+
+  <!-- PRUEBA GRATIS -->
+  <section class="trial-banner" aria-label="Prueba gratis">
+    <h2>🎁 PRUEBA GRATIS 24 HORAS</h2>
+    <p>¿Quieres conocer Shot TV? Solicita acceso gratuito durante 24 horas y disfruta del contenido antes de suscribirte.</p>
+    <a href="prueba.html" class="trial-btn">🎬 SOLICITAR PRUEBA GRATIS</a>
+  </section>
+
 
   <!-- CATÁLOGO -->
   <section id="catalogo">
@@ -387,7 +427,7 @@
 
 
       <!-- AGREGAR PELÍCULA -->
-      <div class="form">
+      <div id="formAgregarPelicula" class="form">
 
         <label>
           Título
@@ -830,7 +870,65 @@
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 
 <script src="script.js?v=20261010-ts-layout-fix"></script>
+<script>
+/* Mantiene visible el formulario al terminar de agregar una película. */
+(function(){
+  const mensajeAdmin = document.getElementById("adminMsg");
+  const formulario = document.getElementById("formAgregarPelicula");
+  if(!mensajeAdmin || !formulario) return;
 
+  const volverAlFormulario = () => {
+    const texto = (mensajeAdmin.textContent || "").toLowerCase();
+    if(texto.includes("película agregada correctamente")){
+      requestAnimationFrame(() => {
+        formulario.scrollIntoView({behavior:"auto", block:"start"});
+        const titulo = document.getElementById("titulo");
+        if(titulo) titulo.focus();
+      });
+    }
+  };
+
+  new MutationObserver(volverAlFormulario).observe(mensajeAdmin, {
+    childList:true,
+    subtree:true,
+    characterData:true
+  });
+})();
+</script>
+<script>
+/* Conserva la posición exacta de la página al cambiar de pestaña o volver a ella. */
+(function(){
+  const key = "shottv_admin_scroll_position";
+  let saved = null;
+
+  function guardarPosicion(){
+    if (document.visibilityState === "hidden" || document.activeElement) {
+      saved = window.scrollY || window.pageYOffset || 0;
+      sessionStorage.setItem(key, String(saved));
+    }
+  }
+
+  function restaurarPosicion(){
+    const value = saved ?? Number(sessionStorage.getItem(key));
+    if (!Number.isFinite(value)) return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: value, left: 0, behavior: "auto" });
+      setTimeout(() => window.scrollTo({ top: value, left: 0, behavior: "auto" }), 150);
+    });
+  }
+
+  window.addEventListener("scroll", () => {
+    sessionStorage.setItem(key, String(window.scrollY || 0));
+  }, {passive:true});
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") guardarPosicion();
+    if (document.visibilityState === "visible") restaurarPosicion();
+  });
+
+  window.addEventListener("focus", restaurarPosicion);
+})();
+</script>
 
 <!-- CONTACTO POR WHATSAPP -->
 <a class="whatsapp-float"
