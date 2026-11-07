@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iniciar sesión | Shot TV</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:Arial,sans-serif;background:#020d17;color:#fff}
+.logo{font-size:30px;font-weight:800;text-align:center;margin:42px 0 26px}.logo span{color:#ff1744}
+main{width:min(92%,480px);margin:0 auto 40px}.card{background:#08202d;border:1px solid #1d4b61;border-radius:20px;padding:32px 28px}
+.icono{text-align:center;font-size:44px}h1{text-align:center;font-size:28px;margin:8px 0 10px}
+.descripcion{text-align:center;color:#b7c7d2;line-height:1.5;margin:0 0 25px}label{display:block;color:#d5e0e7;font-size:14px;margin:16px 0 8px}
+input{width:100%;padding:15px;border-radius:10px;border:1px solid #29485b;background:#061724;color:#fff;font-size:16px;outline:none}input:focus{border-color:#ff2440}
+.campo-password{position:relative}.campo-password input{padding-right:52px}.mostrar{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#d5e0e7;font-size:20px;cursor:pointer;padding:7px}
+.entrar{width:100%;margin-top:24px;padding:15px;border:0;border-radius:10px;background:#ff1744;color:#fff;font-weight:800;font-size:16px;cursor:pointer}.entrar:disabled{opacity:.65}
+.mensaje{display:none;margin-top:16px;padding:12px;border-radius:9px;line-height:1.4;font-size:14px}.mensaje.error{display:block;background:#4a1720;color:#ffd5da}.mensaje.ok{display:block;background:#083747;color:#d4f5ff}
+.acciones{text-align:center;margin-top:22px;color:#b7c7d2;font-size:14px}.acciones a{color:#fff;text-decoration:none;font-weight:bold}.volver{display:block;text-align:center;color:#b7c7d2;text-decoration:none;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="logo">▶ SHOT <span>TV</span></div>
+<main><section class="card">
+<div class="icono">🔐</div><h1>Iniciar sesión</h1>
+<p class="descripcion">Ingresa con el correo y la contraseña que registraste en Shot TV.</p>
+<form id="loginForm">
+<label for="correo">📧 Correo electrónico</label><input id="correo" type="email" placeholder="tu@correo.com" required autocomplete="email">
+<label for="contrasena">🔒 Contraseña</label><div class="campo-password"><input id="contrasena" type="password" placeholder="Tu contraseña" required autocomplete="current-password"><button type="button" class="mostrar" id="mostrarPassword">👁️</button></div>
+<button class="entrar" id="btnEntrar" type="submit">🔐 INICIAR SESIÓN</button>
+</form>
+<div id="mensaje" class="mensaje" role="status"></div>
+<div class="acciones">¿Aún no tienes acceso? <a href="prueba.html">🎁 Solicita tu prueba gratis</a></div>
+</section><a class="volver" href="./">← Volver a Shot TV</a></main>
+<script>
+const SUPABASE_URL="https://akpsjzcuimlwvehbammq.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const form=document.getElementById("loginForm"),correo=document.getElementById("correo"),contrasena=document.getElementById("contrasena"),btn=document.getElementById("btnEntrar"),mensaje=document.getElementById("mensaje");
+document.getElementById("mostrarPassword").onclick=()=>{const v=contrasena.type==="text";contrasena.type=v?"password":"text";document.getElementById("mostrarPassword").textContent=v?"👁️":"🙈";};
+function mostrar(t,tipo){mensaje.className="mensaje "+tipo;mensaje.textContent=t;}
+form.addEventListener("submit",async e=>{e.preventDefault();btn.disabled=true;btn.textContent="INICIANDO SESIÓN...";mensaje.className="mensaje";try{const {error}=await db.auth.signInWithPassword({email:correo.value.trim().toLowerCase(),password:contrasena.value});if(error)throw error;mostrar("✅ Sesión iniciada correctamente. Entrando a Shot TV...","ok");setTimeout(()=>location.href="./",700);}catch(error){console.error(error);mostrar("⚠️ No se pudo iniciar sesión. Revisa tu correo y contraseña.","error");}finally{btn.disabled=false;btn.textContent="🔐 INICIAR SESIÓN";}});
+</script></body></html>
