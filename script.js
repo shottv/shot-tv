@@ -2580,3 +2580,87 @@ document.addEventListener("DOMContentLoaded",()=>{
   `;
   document.head.appendChild(estilo);
 });
+
+
+// ============================================================
+// AVISO DE VENCIMIENTO DE PRUEBA GRATUITA
+// Muestra una alerta cuando quedan 6 horas o menos de la prueba.
+// ============================================================
+async function verificarAvisoFinPrueba(){
+  try{
+    if(!usuario || !usuario.id) return;
+
+    const tieneSuscripcion = await obtenerSuscripcionActiva();
+    if(tieneSuscripcion === true) return;
+
+    const ahora = new Date().toISOString();
+    const {data,error} = await db
+      .from("shottv_pruebas")
+      .select("fecha_vencimiento, estado")
+      .eq("user_id", usuario.id)
+      .eq("estado", "activa")
+      .gt("fecha_vencimiento", ahora)
+      .order("fecha_vencimiento", {ascending:false})
+      .limit(1);
+
+    if(error){
+      console.warn("No se pudo comprobar el vencimiento de la prueba:", error);
+      return;
+    }
+    if(!data || !data.length || !data[0].fecha_vencimiento) return;
+
+    const vencimiento = new Date(data[0].fecha_vencimiento);
+    const faltanMs = vencimiento.getTime() - Date.now();
+    const seisHoras = 6 * 60 * 60 * 1000;
+
+    if(faltanMs <= 0 || faltanMs > seisHoras) return;
+
+    const claveAviso = "shotTvAvisoPrueba_" + vencimiento.getTime();
+    if(localStorage.getItem(claveAviso) === "visto") return;
+
+    const horas = Math.floor(faltanMs / 3600000);
+    const minutos = Math.max(1, Math.floor((faltanMs % 3600000) / 60000));
+    const tiempo = horas > 0
+      ? `${horas} hora${horas === 1 ? "" : "s"} y ${minutos} minuto${minutos === 1 ? "" : "s"}`
+      : `${minutos} minuto${minutos === 1 ? "" : "s"}`;
+
+    const aviso = document.createElement("div");
+    aviso.id = "avisoFinPrueba";
+    aviso.style.cssText = "position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(0,0,0,.82);";
+
+    aviso.innerHTML = `
+      <div style="width:min(440px,100%);box-sizing:border-box;background:#062332;color:#fff;border:1px solid #0b607a;border-radius:18px;padding:26px 22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45);font-family:Arial,sans-serif;">
+        <div style="font-size:42px;margin-bottom:8px;">⏰</div>
+        <h2 style="margin:0 0 12px;font-size:24px;">Tu prueba está por terminar</h2>
+        <p style="margin:0 0 10px;line-height:1.55;color:#d7e8ee;">Te quedan aproximadamente <strong style="color:#fff;">${tiempo}</strong> de acceso gratuito.</p>
+        <p style="margin:0 0 20px;line-height:1.55;color:#a9c4ce;">Suscríbete ahora y continúa disfrutando de todo el contenido de Shot TV.</p>
+        <button id="continuarSuscripcionPrueba" type="button" style="width:100%;padding:14px;border:0;border-radius:10px;background:#ff1231;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;">🎬 Continuar con mi suscripción · $35 al mes</button>
+        <button id="cerrarAvisoFinPrueba" type="button" style="margin-top:12px;background:transparent;border:0;color:#b9d0d9;cursor:pointer;font-size:14px;">Seguir disfrutando mi prueba</button>
+      </div>`;
+
+    document.body.appendChild(aviso);
+
+    const cerrar = () => {
+      localStorage.setItem(claveAviso, "visto");
+      aviso.remove();
+    };
+
+    document.getElementById("cerrarAvisoFinPrueba").onclick = cerrar;
+    document.getElementById("continuarSuscripcionPrueba").onclick = () => {
+      localStorage.setItem(claveAviso, "visto");
+      aviso.remove();
+      if(typeof mostrarAvisoSuscripcion === "function"){
+        mostrarAvisoSuscripcion();
+      }else{
+        window.open(SHOTTV_CLIP_URL, "_blank");
+      }
+    };
+  }catch(error){
+    console.warn("Error verificando el aviso de fin de prueba:", error);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(verificarAvisoFinPrueba, 2500);
+  setInterval(verificarAvisoFinPrueba, 15 * 60 * 1000);
+});
