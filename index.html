@@ -895,27 +895,6 @@
   });
 })();
 </script>
-<script>
-/* Guarda la posición por pestaña sin mover la página al cambiar a otra aplicación o navegador. */
-(function(){
-  const key = "shottv_scroll_position";
-
-  // Evita que el navegador intente restaurar una posición diferente al volver a esta pestaña.
-  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-
-  function guardarPosicion(){
-    sessionStorage.setItem(key, String(window.scrollY || window.pageYOffset || 0));
-  }
-
-  // Solo guardamos la posición. No ejecutamos scrollTo al recuperar el foco,
-  // porque eso puede provocar saltos cuando el usuario cambia de navegador.
-  window.addEventListener("scroll", guardarPosicion, {passive:true});
-  window.addEventListener("pagehide", guardarPosicion);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") guardarPosicion();
-  });
-})();
-</script>
 
 <!-- CONTACTO POR WHATSAPP -->
 <a class="whatsapp-float"
