@@ -232,7 +232,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <script>
     const SUPABASE_URL = "https://akpsjzcuimlwvehbammq.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
@@ -248,50 +247,75 @@
       contenido.style.display = "none";
     }
 
+    function escaparHtml(valor) {
+      return String(valor ?? "").replace(/[&<>"']/g, c => ({
+        "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+      }[c]));
+    }
+
     async function cargarPanel() {
       try {
-        const { data: sessionData, error: sessionError } = await db.auth.getSession();
-        if (sessionError) throw sessionError;
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Tiempo de espera agotado")), 8000)
+        );
 
-        if (!sessionData.session) {
-          mostrarError("🔐 Debes iniciar sesión con tu cuenta de administrador.");
-          return;
-        }
+        const cargar = async () => {
+          const { data: sessionData, error: sessionError } = await db.auth.getSession();
+          if (sessionError) throw sessionError;
+          if (!sessionData.session) throw new Error("INICIAR_SESION");
 
-        const { data: esAdmin, error: adminError } = await db.rpc("es_admin");
-        if (adminError) throw adminError;
+          const { data: adminData, error: adminError } = await db
+            .from("admin_users")
+            .select("user_id")
+            .eq("user_id", sessionData.session.user.id)
+            .limit(1);
 
-        if (esAdmin !== true) {
-          mostrarError("⛔ No tienes permiso para acceder al Panel de Administrador.");
-          return;
-        }
+          if (adminError) throw adminError;
+          if (!adminData || adminData.length === 0) throw new Error("SIN_PERMISO");
 
-        const { data: estadisticas, error: estadisticasError } =
-          await db.rpc("obtener_estadisticas_admin");
-        if (estadisticasError) throw estadisticasError;
+          const [pruebasRes, suscripcionesRes, peliculasRes, topRes] = await Promise.all([
+            db.from("shottv_pruebas").select("user_id", { count: "exact" }).eq("estado", "activa"),
+            db.from("shottv_suscripciones").select("user_id", { count: "exact" }).eq("estado", "activa"),
+            db.from("peliculas").select("id", { count: "exact", head: true }),
+            db.from("peliculas").select("titulo, portada, vistas").order("vistas", { ascending: false }).limit(5)
+          ]);
 
-        document.getElementById("usuarios").textContent = estadisticas?.usuarios ?? 0;
-        document.getElementById("pruebas").textContent = estadisticas?.pruebas_activas ?? 0;
-        document.getElementById("suscripciones").textContent = estadisticas?.suscripciones_activas ?? 0;
-        document.getElementById("peliculas").textContent = estadisticas?.peliculas ?? 0;
+          for (const resultado of [pruebasRes, suscripcionesRes, peliculasRes, topRes]) {
+            if (resultado.error) throw resultado.error;
+          }
 
-        const { data: peliculas, error: peliculasError } =
-          await db.rpc("obtener_peliculas_mas_vistas");
-        if (peliculasError) throw peliculasError;
+          const usuariosUnicos = new Set();
+          (pruebasRes.data || []).forEach(x => x.user_id && usuariosUnicos.add(x.user_id));
+          (suscripcionesRes.data || []).forEach(x => x.user_id && usuariosUnicos.add(x.user_id));
+
+          return {
+            usuarios: usuariosUnicos.size,
+            pruebas: pruebasRes.count ?? (pruebasRes.data || []).length,
+            suscripciones: suscripcionesRes.count ?? (suscripcionesRes.data || []).length,
+            peliculas: peliculasRes.count ?? 0,
+            top: topRes.data || []
+          };
+        };
+
+        const datos = await Promise.race([cargar(), timeout]);
+
+        document.getElementById("usuarios").textContent = datos.usuarios;
+        document.getElementById("pruebas").textContent = datos.pruebas;
+        document.getElementById("suscripciones").textContent = datos.suscripciones;
+        document.getElementById("peliculas").textContent = datos.peliculas;
 
         const lista = document.getElementById("peliculasMasVistas");
-
-        if (!peliculas || peliculas.length === 0) {
+        if (!datos.top.length) {
           lista.innerHTML = "<p style='color:#b4c8d1'>Aún no hay películas para mostrar.</p>";
         } else {
-          lista.innerHTML = peliculas.map((pelicula, indice) => `
+          lista.innerHTML = datos.top.map((pelicula, indice) => `
             <article class="pelicula">
               ${pelicula.portada
-                ? `<img src="${pelicula.portada}" alt="${pelicula.titulo || "Película"}" onerror="this.style.display='none'">`
+                ? `<img src="${escaparHtml(pelicula.portada)}" alt="${escaparHtml(pelicula.titulo || "Película")}" onerror="this.style.display='none'">`
                 : `<div style="height:190px;display:flex;align-items:center;justify-content:center;color:#9eb5c1">Sin portada</div>`}
               <div class="pelicula-info">
-                <div class="pelicula-titulo">${indice + 1}. ${pelicula.titulo || "Sin título"}</div>
-                <div class="pelicula-vistas">👁️ ${pelicula.vistas ?? 0} vistas</div>
+                <div class="pelicula-titulo">${indice + 1}. ${escaparHtml(pelicula.titulo || "Sin título")}</div>
+                <div class="pelicula-vistas">👁️ ${Number(pelicula.vistas || 0)} vistas</div>
               </div>
             </article>
           `).join("");
@@ -299,14 +323,29 @@
 
         mensaje.style.display = "none";
         contenido.style.display = "block";
-
       } catch (error) {
         console.error("Error cargando el panel:", error);
-        mostrarError("⚠️ No fue posible cargar el Panel de Administrador.");
+        if (error.message === "INICIAR_SESION") {
+          mostrarError("🔐 Debes iniciar sesión en Shot TV antes de abrir este panel.");
+        } else if (error.message === "SIN_PERMISO") {
+          mostrarError("⛔ Tu cuenta no está autorizada como administradora.");
+        } else if (error.message === "Tiempo de espera agotado") {
+          mostrarError("⚠️ La conexión tardó demasiado. Actualiza la página e inténtalo nuevamente.");
+        } else {
+          mostrarError("⚠️ No fue posible cargar el panel: " + (error.message || "Error desconocido"));
+        }
       }
     }
 
     cargarPanel();
+  </script>
+
+  <script>
+    /*
+      PASO SIGUIENTE:
+      Aquí conectaremos esta página con tu mismo proyecto de Supabase.
+      No coloques todavía nuevas claves si no es necesario.
+    */
   </script>
 
 </body>
