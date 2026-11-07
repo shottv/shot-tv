@@ -147,7 +147,7 @@ async function cargarPeliculas(){
   try{
     // En algunos navegadores de Smart TV una solicitud puede quedar esperando
     // indefinidamente. El tiempo máximo evita que la pantalla permanezca bloqueada.
-    const consulta=db.from("peliculas")
+    const consulta=db.from("peliculas_catalogo")
       .select("id,created_at,titulo,año,genero,portada,orden,destacada")
       .order("orden",{ascending:true,nullsFirst:false})
       .order("created_at",{ascending:true});
@@ -185,7 +185,7 @@ async function cargarNetflixVisto(){
   if(!estado || !grid) return;
 
   estado.textContent="Cargando películas...";
-  const {data,error}=await db.from("peliculas")
+  const {data,error}=await db.from("peliculas_catalogo")
     .select("id,created_at,titulo,año,genero,portada,orden,destacada")
     .eq("destacada",true)
     .order("orden",{ascending:true,nullsFirst:false})
