@@ -67,31 +67,72 @@
 
 
 <style>
-/* Área superior fija: menú, buscador y promoción de prueba */
+/* Área superior fija en PC y celulares */
 .top-fixed-area{
-  position: sticky;
-  top: 0;
-  z-index: 1000;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  z-index: 9999 !important;
   background: #061523;
   box-shadow: 0 3px 14px rgba(0,0,0,.45);
 }
 
-/* El encabezado queda dentro del área fija */
 .top-fixed-area header{
-  position: relative;
-  top: auto;
-  z-index: auto;
+  position: relative !important;
+  top: auto !important;
+  z-index: auto !important;
 }
 
-/* La promoción también permanece visible */
 .top-fixed-area .trial-banner{
   margin: 18px auto 14px;
 }
 
-@media(max-width:760px){
+/* Evita que el contenido quede oculto debajo del área fija */
+body{
+  padding-top: 245px;
+}
+
+@media (max-width: 760px){
+  body{
+    padding-top: 285px;
+  }
+
   .top-fixed-area{
-    position: sticky;
-    top: 0;
+    max-height: 285px;
+  }
+}
+</style>
+
+
+<style id="whatsapp-visibility-fix">
+/* Mantiene visible el botón flotante de WhatsApp */
+.whatsapp-float,
+.whatsapp-button,
+.whatsapp-btn,
+#whatsapp-button,
+#whatsappFloat,
+a[href*="wa.me"],
+a[href*="api.whatsapp.com"]{
+  position: fixed !important;
+  right: 20px !important;
+  bottom: 20px !important;
+  z-index: 10000 !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+@media (max-width: 760px){
+  .whatsapp-float,
+  .whatsapp-button,
+  .whatsapp-btn,
+  #whatsapp-button,
+  #whatsappFloat,
+  a[href*="wa.me"],
+  a[href*="api.whatsapp.com"]{
+    right: 16px !important;
+    bottom: 16px !important;
+    z-index: 10000 !important;
   }
 }
 </style>
