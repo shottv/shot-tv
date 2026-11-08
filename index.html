@@ -65,10 +65,42 @@
 }
 </style>
 
+
+<style>
+/* Área superior fija: menú, buscador y promoción de prueba */
+.top-fixed-area{
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: #061523;
+  box-shadow: 0 3px 14px rgba(0,0,0,.45);
+}
+
+/* El encabezado queda dentro del área fija */
+.top-fixed-area header{
+  position: relative;
+  top: auto;
+  z-index: auto;
+}
+
+/* La promoción también permanece visible */
+.top-fixed-area .trial-banner{
+  margin: 18px auto 14px;
+}
+
+@media(max-width:760px){
+  .top-fixed-area{
+    position: sticky;
+    top: 0;
+  }
+}
+</style>
+
 </head>
 
 <body>
 
+<div class="top-fixed-area">
 <header>
   <div class="logo" id="shotTvLogo" title="Shot TV">▶ Shot TV</div>
 
@@ -87,15 +119,15 @@
   <input id="buscar" type="search" placeholder="Buscar película...">
 </header>
 
-<main>
-
-
   <!-- PRUEBA GRATIS -->
   <section class="trial-banner" aria-label="Prueba gratis">
     <h2>🎁 PRUEBA GRATIS 24 HORAS</h2>
     <p>¿Quieres conocer Shot TV? Solicita acceso gratuito durante 24 horas y disfruta del contenido antes de suscribirte.</p>
     <a href="prueba.html" class="trial-btn">🎬 SOLICITAR PRUEBA GRATIS</a>
   </section>
+</div>
+
+<main>
 
 
   <!-- CATÁLOGO -->
