@@ -21,9 +21,9 @@ label{color:#cbd5e1;font-size:13px;display:flex;flex-direction:column;gap:7px}
 input{background:#111f32;color:#fff;border:1px solid #263a52;padding:11px;border-radius:7px;outline:none}
 .full{grid-column:1/-1}.form button{grid-column:1/-1;padding:13px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}
 .form button:hover{background:#1d4ed8}
-.edit-modal{display:none;position:fixed;inset:0;background:#000d;z-index:25;align-items:center;justify-content:center;padding:20px}
+.edit-modal{display:none;position:fixed;inset:0;background:#000d;z-index:20001;align-items:center;justify-content:center;padding:20px}
 .edit-modal.open{display:flex}.editbox{position:relative;width:min(850px,96vw);max-height:90vh;overflow:auto;background:#07111f;border-radius:12px;padding:24px;box-shadow:0 20px 60px #000}.editbox h2{margin:0 45px 20px 0}.editform{margin-top:0}
-.modal{display:none;position:fixed;inset:0;background:#000d;z-index:20;align-items:center;justify-content:center;padding:20px}
+.modal{display:none;position:fixed;inset:0;background:#000d;z-index:20000;align-items:center;justify-content:center;padding:20px}
 .modal.open{display:flex}.playerbox{position:relative;width:min(1000px,96vw);background:#07111f;border-radius:12px;padding:20px;box-shadow:0 20px 60px #000}
 .playerbox h2{margin:0 45px 14px 0}.player-wrap{width:100%;background:#000;border-radius:8px;overflow:hidden}.playerbox video,.youtube-player{width:100%;height:min(75vh,562px);background:#000;border-radius:8px;display:block;border:0}.youtube-player{aspect-ratio:16/9}.playerbox .hidden{display:none!important}
 .close{position:absolute;right:12px;top:10px;background:#dc2626;color:#fff;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:16px}
