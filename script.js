@@ -2414,6 +2414,27 @@ function mostrarPeliculasRelacionadas(peliculaActual){
       `).join("")}
     </div>`;
 }
+async function obtenerEnlaceTemporal(peliculaId) {
+  const funcion = "https://akpsjzcuimlwvehbammq.supabase.co/functions/v1/opendrive-temporal";
+
+  try {
+    const respuesta = await fetch(
+      `${funcion}?pelicula_id=${encodeURIComponent(peliculaId)}`
+    );
+
+    const datos = await respuesta.json();
+
+    if (!respuesta.ok || !datos.url_temporal) {
+      throw new Error(datos.error || "No se pudo crear el acceso temporal");
+    }
+
+    return datos.url_temporal;
+  } catch (error) {
+    console.error("Error obteniendo acceso temporal:", error);
+    throw error;
+  }
+}
+
 async function abrir(id){
   const m=peliculas.find(x=>Number(x.id)===Number(id));
   if(!m)return;
@@ -2455,7 +2476,17 @@ async function abrir(id){
   // Recuperar el punto donde el usuario dejó la película.
   const progresoGuardado=await recuperarProgreso(m.id);
 
-  reproducirFuente(m.url);
+  let enlaceParaReproducir = m.url;
+
+  try {
+    enlaceParaReproducir = await obtenerEnlaceTemporal(m.id);
+  } catch (error) {
+    console.error(error);
+    alert("No se pudo obtener el acceso temporal para esta película.");
+    return;
+  }
+
+  reproducirFuente(enlaceParaReproducir);
 
   // YouTube no permite leer el minuto de reproducción con el iframe actual.
   // Para enlaces de video directos restauramos el progreso automáticamente.
