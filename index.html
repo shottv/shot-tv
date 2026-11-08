@@ -112,6 +112,60 @@ a[href*="api.whatsapp.com"]{
 }
 </style>
 
+
+<style id="trial-mobile-visibility-fix">
+/* Corrección: la promoción y el botón deben mostrarse también en celulares */
+.trial-banner,
+.prueba-gratis,
+.trial-section,
+[class*="trial"]{
+  display: block;
+}
+
+.trial-banner button,
+.trial-banner .btn,
+.trial-banner a,
+.prueba-gratis button,
+.prueba-gratis .btn,
+.prueba-gratis a{
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 20 !important;
+}
+
+@media (max-width: 760px){
+  .trial-banner,
+  .prueba-gratis,
+  .trial-section,
+  [class*="trial"]{
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .trial-banner button,
+  .trial-banner .btn,
+  .trial-banner a,
+  .prueba-gratis button,
+  .prueba-gratis .btn,
+  .prueba-gratis a{
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
+    max-width: calc(100vw - 40px) !important;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+}
+</style>
+
 </head>
 
 <body>
