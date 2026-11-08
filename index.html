@@ -117,6 +117,66 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
 })();
 </script>
 
+
+<style id="shot-tv-player-whatsapp-fix">
+/* Botón flotante de WhatsApp: visible en celular y PC */
+.whatsapp-float{
+  position:fixed !important;
+  right:18px !important;
+  bottom:82px !important;
+  width:58px !important;
+  height:58px !important;
+  border-radius:50% !important;
+  background:#25D366 !important;
+  color:#fff !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:auto !important;
+  z-index:30000 !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.35) !important;
+}
+.whatsapp-float svg{
+  width:32px !important;
+  height:32px !important;
+  fill:currentColor !important;
+}
+
+/* El reproductor siempre ocupa la capa superior */
+#modal{
+  z-index:999999 !important;
+}
+#modal .playerbox{
+  position:relative !important;
+  z-index:1000000 !important;
+}
+</style>
+<script>
+(function(){
+  function estadoReproductor(){
+    var modal = document.getElementById('modal');
+    var header = document.querySelector('.top-fixed-area');
+    if(!modal || !header) return;
+    var visible = getComputedStyle(modal).display !== 'none';
+    header.style.visibility = visible ? 'hidden' : 'visible';
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var modal = document.getElementById('modal');
+    if(!modal) return;
+    new MutationObserver(estadoReproductor).observe(modal, {
+      attributes:true,
+      attributeFilter:['style','class']
+    });
+    document.addEventListener('click', function(){
+      setTimeout(estadoReproductor, 50);
+    });
+    estadoReproductor();
+  });
+})();
+</script>
+
 </head>
 
 <body>
