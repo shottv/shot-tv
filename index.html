@@ -187,6 +187,7 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
 }
 </style>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -552,13 +553,13 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
       <!-- IMPORTACIÓN MASIVA DE PELÍCULAS -->
       <section id="importacionMasiva" class="live-admin" style="margin-bottom:28px;">
         <h2>📥 Importar películas masivamente</h2>
-        <p class="subtexto">Carga un archivo CSV. Las películas existentes se detectarán para evitar duplicados y podrás revisar todo antes de publicar.</p>
+        <p class="subtexto">Carga un archivo Excel (.xlsx) o CSV. Las películas existentes se detectarán para evitar duplicados y podrás revisar todo antes de publicar.</p>
 
         <div class="form">
           <label class="full">
-            Archivo CSV
-            <input id="archivoImportacionPeliculas" type="file" accept=".csv,text/csv">
-            <small>Columnas: Título, Año, Género, IMDb, Enlace del video, Portada (URL opcional).</small>
+            Archivo de películas
+            <input id="archivoImportacionPeliculas" type="file" accept=".xlsx,.xls,.csv,text/csv">
+            <small>Columnas: TÍTULO, AÑO, GÉNERO, ENLACE DE LA PELÍCULA, IMDb ID O ENLACE. PORTADA es opcional.</small>
           </label>
           <button id="analizarImportacionPeliculas" type="button">🔍 ANALIZAR ARCHIVO</button>
         </div>
