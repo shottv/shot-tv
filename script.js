@@ -2805,26 +2805,27 @@ function valorColumnaImportacion(fila,nombres){
 
 async function buscarPortadasAutomaticas(p){
   if(p.portada) return;
+  const token=(localStorage.getItem('shottv_tmdb_token')||'').trim();
+  if(!token){ p.opcionesPortada=[]; return; }
   p.buscandoPortada=true; renderizarRevisionImportacion();
   try{
-    const consulta=encodeURIComponent(`${p.titulo} ${p.anio}`);
-    const respuesta=await fetch(`https://itunes.apple.com/search?term=${consulta}&entity=movie&limit=5&country=us`);
-    if(!respuesta.ok) throw new Error('No fue posible consultar las portadas.');
-    const datos=await respuesta.json();
-    const resultados=(datos.results||[]).filter(x=>x.artworkUrl100).map(x=>({
-      url:String(x.artworkUrl100).replace('100x100bb','600x900bb'),
-      titulo:x.trackName||''
+    const params=new URLSearchParams({query:p.titulo,language:'es-MX',include_adult:'false'});
+    if(p.anio) params.set('year',String(p.anio));
+    const respuesta=await fetch(`https://api.themoviedb.org/3/search/movie?${params.toString()}`,{
+      headers:{Authorization:`Bearer ${token}`,accept:'application/json'}
+    });
+    if(!respuesta.ok) throw new Error('No fue posible consultar TMDb. Revisa la clave.');
+    const data=await respuesta.json();
+    const resultados=(data.results||[]).filter(x=>x.poster_path).map(x=>({
+      url:`https://image.tmdb.org/t/p/w500${x.poster_path}`,
+      titulo:x.title||x.original_title||'',
+      anio:(x.release_date||'').slice(0,4)
     }));
-    p.opcionesPortada=resultados;
-    p.indicePortada=0;
+    p.opcionesPortada=resultados; p.indicePortada=0;
     if(resultados.length) p.portada=resultados[0].url;
-  }catch(e){
-    console.warn('Shot TV: no se encontró portada automática para',p.titulo,e);
-    p.opcionesPortada=[];
-  }finally{ p.buscandoPortada=false; renderizarRevisionImportacion(); }
+  }catch(e){ console.warn('Shot TV: no se encontró portada automática para',p.titulo,e); p.opcionesPortada=[]; }
+  finally{ p.buscandoPortada=false; renderizarRevisionImportacion(); }
 }
-
-function escaparAtributo(v){ return esc(String(v||'')); }
 
 function renderizarRevisionImportacion(){
   const lista=$('importacionMasivaLista');
@@ -2865,6 +2866,9 @@ async function analizarImportacionMasiva(){
   const archivo=$('archivoImportacionMasiva'), resumen=$('importacionMasivaResumen'), confirmar=$('confirmarImportacionMasiva');
   if(!archivo?.files?.length){ mensaje('importacionMasivaMsg','Selecciona un archivo Excel o CSV.',true); return; }
   try{
+    const claveTmdb=($('tmdbApiKey')?.value||'').trim();
+    if(claveTmdb) localStorage.setItem('shottv_tmdb_token',claveTmdb);
+    if(!claveTmdb && !localStorage.getItem('shottv_tmdb_token')){ mensaje('importacionMasivaMsg','⚠️ Agrega tu clave de TMDb para buscar las portadas automáticamente.',true); return; }
     mensaje('importacionMasivaMsg','Analizando archivo y buscando portadas...');
     const filas=await leerArchivoImportacionMasiva(archivo.files[0]);
     const existentes=peliculas||[], claves=new Set(existentes.map(p=>normalizarClaveImportacion(p.titulo,p['año']))), vistas=new Set();
