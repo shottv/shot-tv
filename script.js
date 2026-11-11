@@ -2827,6 +2827,14 @@ async function buscarPortadasAutomaticas(p){
   finally{ p.buscandoPortada=false; renderizarRevisionImportacion(); }
 }
 
+function escaparAtributo(valor){
+  return String(valor ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
 function renderizarRevisionImportacion(){
   const lista=$('importacionMasivaLista');
   const confirmar=$('confirmarImportacionMasiva');
