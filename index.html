@@ -549,6 +549,28 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
       </section>
 
 
+      <!-- IMPORTACIÓN MASIVA DE PELÍCULAS -->
+      <section id="importacionMasiva" class="live-admin" style="margin-bottom:28px;">
+        <h2>📥 Importar películas masivamente</h2>
+        <p class="subtexto">Carga un archivo CSV. Las películas existentes se detectarán para evitar duplicados y podrás revisar todo antes de publicar.</p>
+
+        <div class="form">
+          <label class="full">
+            Archivo CSV
+            <input id="archivoImportacionPeliculas" type="file" accept=".csv,text/csv">
+            <small>Columnas: Título, Año, Género, IMDb, Enlace del video, Portada (URL opcional).</small>
+          </label>
+          <button id="analizarImportacionPeliculas" type="button">🔍 ANALIZAR ARCHIVO</button>
+        </div>
+
+        <div id="importacionMsg" class="mensaje"></div>
+        <div id="importacionResumen" class="subtexto" style="margin:12px 0;"></div>
+        <div id="importacionPreview" style="display:grid;gap:12px;"></div>
+        <button id="confirmarImportacionPeliculas" type="button" hidden style="margin-top:16px;">🚀 IMPORTAR PELÍCULAS NUEVAS</button>
+      </section>
+
+      <hr class="admin-sep">
+
       <!-- AGREGAR PELÍCULA -->
       <div id="formAgregarPelicula" class="form">
 
