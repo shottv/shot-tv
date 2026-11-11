@@ -853,6 +853,29 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
 
       </div>
 
+      <!-- IMPORTACIÓN MASIVA DE PELÍCULAS -->
+      <div class="solicitudes-dashboard" id="importacionMasiva">
+        <div class="solicitudes-dashboard-head">
+          <div>
+            <h2>📥 Importar películas masivamente</h2>
+            <p class="subtexto">Sube tu archivo Excel o CSV para agregar varias películas sin duplicar las que ya existen.</p>
+          </div>
+        </div>
+
+        <div class="form">
+          <label class="full">
+            Archivo de películas (.xlsx o .csv)
+            <input id="archivoImportacionMasiva" type="file" accept=".xlsx,.xls,.csv">
+          </label>
+          <button id="analizarImportacionMasiva" type="button">🔍 ANALIZAR ARCHIVO</button>
+        </div>
+
+        <div id="importacionMasivaMsg" class="mensaje"></div>
+        <div id="importacionMasivaResumen" class="subtexto" style="margin-top:12px;"></div>
+        <div id="importacionMasivaLista" class="solicitudes-admin-list" style="margin-top:12px;"></div>
+        <button id="confirmarImportacionMasiva" type="button" class="hidden" style="margin-top:12px;">🚀 IMPORTAR PELÍCULAS NUEVAS</button>
+      </div>
+
     </div>
 
   </section>
@@ -908,32 +931,6 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
     <div id="editMsg" class="mensaje"></div>
 
   </div>
-
-      <!-- IMPORTACIÓN MASIVA DE PELÍCULAS -->
-      <hr class="admin-sep">
-      <section id="importacionMasiva" class="live-admin">
-        <h2>📥 Importar películas masivamente</h2>
-        <p class="subtexto">Selecciona tu archivo Excel (.xlsx) o CSV. Se revisarán las películas antes de agregarlas al catálogo.</p>
-        <div class="form">
-          <label class="full">
-            Archivo de películas
-            <input id="archivoImportacion" type="file" accept=".xlsx,.xls,.csv">
-          </label>
-          <button id="analizarImportacion" type="button">🔍 ANALIZAR ARCHIVO</button>
-        </div>
-        <div id="importacionResumen" class="mensaje"></div>
-        <div id="importacionVistaPrevia" class="live-admin-list"></div>
-        <div id="importacionAcciones" class="hidden" style="margin-top:14px;">
-          <button id="confirmarImportacion" type="button">🚀 IMPORTAR PELÍCULAS NUEVAS</button>
-          <button id="cancelarImportacion" type="button" class="cancel-edit-channel">Cancelar</button>
-        </div>
-      </section>
-
-
-
-      <hr class="admin-sep">
-
-
 
 </div>
 
@@ -1018,7 +1015,8 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
 <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 
-<script src="script.js?v=20261010-ts-layout-fix"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="script.js?v=20261111-importacion-masiva"></script>
 <script>
 /* Mantiene visible el formulario al terminar de agregar una película. */
 (function(){
@@ -1057,6 +1055,5 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
   </svg>
 </a>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </body>
 </html>

@@ -2766,110 +2766,101 @@ function iniciarVerificacionPruebaShotTV(){
 }
 
 
-/* ================= IMPORTACIÓN MASIVA SHOT TV ================= */
-let peliculasPendientesImportacion=[];
+/* ================= IMPORTACIÓN MASIVA DE PELÍCULAS ================= */
+let peliculasImportacionMasiva=[];
 
-function normalizarImportacion(valor){
-  return String(valor ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+function normalizarClaveImportacion(titulo, anio){
+  return `${String(titulo||'').trim().toLowerCase()}|${String(anio||'').trim()}`;
 }
 
-function obtenerCampoImportacion(fila,nombres){
-  for(const nombre of nombres){
-    if(Object.prototype.hasOwnProperty.call(fila,nombre) && fila[nombre] !== undefined && fila[nombre] !== null) return String(fila[nombre]).trim();
-  }
-  const claves=Object.keys(fila);
-  for(const clave of claves){
-    const limpia=normalizarImportacion(clave).replace(/[^a-z0-9]/g,"");
-    if(nombres.some(n=>normalizarImportacion(n).replace(/[^a-z0-9]/g,"")===limpia)) return String(fila[clave] ?? "").trim();
-  }
-  return "";
+function leerArchivoImportacionMasiva(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('No se pudo leer el archivo.'));
+    reader.onload=(event)=>{
+      try{
+        if(file.name.toLowerCase().endsWith('.csv')){
+          const texto=event.target.result;
+          const lineas=texto.split(/\r?\n/).filter(x=>x.trim());
+          if(!lineas.length) return resolve([]);
+          const separar=(linea)=>linea.split(',').map(x=>x.trim().replace(/^"|"$/g,''));
+          const encabezados=separar(lineas[0]).map(x=>x.toUpperCase());
+          resolve(lineas.slice(1).map(linea=>{
+            const valores=separar(linea); const obj={}; encabezados.forEach((h,i)=>obj[h]=valores[i]||''); return obj;
+          }));
+          return;
+        }
+        if(typeof XLSX==='undefined') throw new Error('No se pudo cargar el lector de Excel.');
+        const wb=XLSX.read(event.target.result,{type:'array'});
+        const hoja=wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(hoja,{defval:''}));
+      }catch(e){reject(e);}
+    };
+    if(file.name.toLowerCase().endsWith('.csv')) reader.readAsText(file,'UTF-8'); else reader.readAsArrayBuffer(file);
+  });
 }
 
-function limpiarImportacion(){
-  peliculasPendientesImportacion=[];
-  const vista=$("importacionVistaPrevia");
-  const acciones=$("importacionAcciones");
-  const resumen=$("importacionResumen");
-  if(vista) vista.innerHTML="";
-  if(resumen) resumen.textContent="";
-  if(acciones) acciones.classList.add("hidden");
-  const archivo=$("archivoImportacion"); if(archivo) archivo.value="";
+function valorColumnaImportacion(fila, nombres){
+  const mapa={}; Object.keys(fila||{}).forEach(k=>mapa[String(k).trim().toUpperCase()]=fila[k]);
+  for(const nombre of nombres){ if(mapa[nombre]!==undefined) return String(mapa[nombre]??'').trim(); }
+  return '';
 }
 
 async function analizarImportacionMasiva(){
-  if(!usuario || !esAdmin){ mensaje("importacionResumen","Debes iniciar sesión como administrador.",true); return; }
-  const input=$("archivoImportacion");
-  const archivo=input?.files?.[0];
-  if(!archivo){ mensaje("importacionResumen","Selecciona un archivo Excel o CSV.",true); return; }
-  if(!window.XLSX){ mensaje("importacionResumen","No se pudo cargar el lector de Excel. Recarga la página e inténtalo nuevamente.",true); return; }
-
+  const archivo=$('archivoImportacionMasiva');
+  const lista=$('importacionMasivaLista');
+  const resumen=$('importacionMasivaResumen');
+  const confirmar=$('confirmarImportacionMasiva');
+  if(!archivo?.files?.length){ mensaje('importacionMasivaMsg','Selecciona un archivo Excel o CSV.',true); return; }
   try{
-    mensaje("importacionResumen","Analizando archivo...");
-    const datos=await archivo.arrayBuffer();
-    const libro=XLSX.read(datos,{type:"array"});
-    const hoja=libro.Sheets[libro.SheetNames[0]];
-    const filas=XLSX.utils.sheet_to_json(hoja,{defval:""});
-    if(!filas.length){ mensaje("importacionResumen","El archivo no contiene películas.",true); return; }
-
-    const existentes=new Set((peliculas||[]).map(p=>normalizarImportacion(p.titulo)+"|"+String(p["año"] ?? p.anio ?? "").trim()));
-    const vistos=new Set();
-    const nuevas=[]; const repetidas=[]; const errores=[];
-
-    filas.forEach((fila,indice)=>{
-      const titulo=obtenerCampoImportacion(fila,["TÍTULO","TITULO","Título","titulo"]);
-      const anio=obtenerCampoImportacion(fila,["AÑO","ANO","Año","año","anio"]);
-      const genero=obtenerCampoImportacion(fila,["GÉNERO","GENERO","Género","genero"]);
-      const url=obtenerCampoImportacion(fila,["ENLACE DE LA PELÍCULA","ENLACE DE LA PELICULA","URL","ENLACE","Direct Link"]);
-      const portada=obtenerCampoImportacion(fila,["PORTADA","URL PORTADA","URL DE PORTADA"]);
-      const imdb=obtenerCampoImportacion(fila,["IMDb ID O ENLACE","IMDB","IMDb","IMDb ID"]);
-      if(!titulo || !url){ errores.push({fila:indice+2,titulo:titulo||"Sin título",motivo:"Falta título o enlace de la película"}); return; }
-      const clave=normalizarImportacion(titulo)+"|"+String(anio).trim();
-      if(existentes.has(clave) || vistos.has(clave)){ repetidas.push({fila:indice+2,titulo,anio}); return; }
-      vistos.add(clave);
-      nuevas.push({fila:indice+2,titulo,anio:Number(anio)||null,genero:genero||"Sin género",url,portada,imdb});
+    mensaje('importacionMasivaMsg','Analizando archivo...');
+    const filas=await leerArchivoImportacionMasiva(archivo.files[0]);
+    const existentes=peliculas||[];
+    const claves=new Set(existentes.map(p=>normalizarClaveImportacion(p.titulo,p['año'])));
+    const vistas=new Set();
+    peliculasImportacionMasiva=[];
+    const errores=[];
+    filas.forEach((fila,index)=>{
+      const titulo=valorColumnaImportacion(fila,['TÍTULO','TITULO','TITLE']);
+      const anio=valorColumnaImportacion(fila,['AÑO','ANO','YEAR']);
+      const genero=valorColumnaImportacion(fila,['GÉNERO','GENERO','GENRE']);
+      const url=valorColumnaImportacion(fila,['ENLACE DE LA PELÍCULA','ENLACE DE LA PELICULA','URL','ENLACE','VIDEO']);
+      const portada=valorColumnaImportacion(fila,['PORTADA','URL PORTADA','POSTER']);
+      const clave=normalizarClaveImportacion(titulo,anio);
+      if(!titulo || !anio || !genero || !url){ errores.push(`Fila ${index+2}: faltan datos obligatorios.`); return; }
+      if(claves.has(clave) || vistas.has(clave)) return;
+      vistas.add(clave);
+      peliculasImportacionMasiva.push({titulo,anio,genero,url,portada});
     });
-
-    peliculasPendientesImportacion=nuevas;
-    const vista=$("importacionVistaPrevia");
-    if(vista){
-      vista.innerHTML="";
-      nuevas.forEach((p,i)=>{
-        const item=document.createElement("div");
-        item.className="live-admin-item";
-        item.innerHTML=`<strong>${i+1}. ${p.titulo}</strong><br><small>${p.anio||"Sin año"} · ${p.genero}</small><br><small>${p.portada?"🖼️ Portada proporcionada":"⚠️ Sin URL de portada"}</small>`;
-        vista.appendChild(item);
-      });
-      errores.forEach(p=>{ const item=document.createElement("div"); item.className="live-admin-item"; item.textContent=`⚠️ Fila ${p.fila}: ${p.titulo} — ${p.motivo}`; vista.appendChild(item); });
-    }
-    mensaje("importacionResumen",`Archivo analizado: ${filas.length} películas encontradas. 🆕 ${nuevas.length} nuevas · ⏭️ ${repetidas.length} ya existen · ⚠️ ${errores.length} con errores.`);
-    $("importacionAcciones")?.classList.toggle("hidden",nuevas.length===0);
-  }catch(error){ console.error(error); mensaje("importacionResumen","No se pudo leer el archivo: "+error.message,true); }
+    resumen.textContent=`Archivo analizado: ${filas.length} filas. Nuevas: ${peliculasImportacionMasiva.length}. Omitidas por duplicado: ${Math.max(0,filas.length-peliculasImportacionMasiva.length-errores.length)}. Con errores: ${errores.length}.`;
+    lista.innerHTML=peliculasImportacionMasiva.map((p,i)=>`<div class="solicitud-item"><strong>${i+1}. ${esc(p.titulo)}</strong><br><small>${esc(p.anio)} · ${esc(p.genero)}</small><br><small>${esc(p.url)}</small></div>`).join('') || '<p class="subtexto">No hay películas nuevas listas para importar.</p>';
+    if(errores.length) mensaje('importacionMasivaMsg',errores.slice(0,5).join(' '),true); else mensaje('importacionMasivaMsg',peliculasImportacionMasiva.length?'Revisa la lista y confirma la importación.':'No se encontraron películas nuevas.');
+    confirmar?.classList.toggle('hidden',peliculasImportacionMasiva.length===0);
+  }catch(error){ console.error(error); mensaje('importacionMasivaMsg','No se pudo analizar el archivo: '+error.message,true); }
 }
 
 async function confirmarImportacionMasiva(){
-  if(!peliculasPendientesImportacion.length){ mensaje("importacionResumen","No hay películas nuevas para importar.",true); return; }
-  const btn=$("confirmarImportacion"); if(btn) btn.disabled=true;
+  const btn=$('confirmarImportacionMasiva');
+  if(!peliculasImportacionMasiva.length) return;
+  btn.disabled=true;
   try{
-    mensaje("importacionResumen",`Importando ${peliculasPendientesImportacion.length} películas...`);
+    mensaje('importacionMasivaMsg','Importando películas...');
     const ordenes=(peliculas||[]).map(p=>Number(p.orden)).filter(Number.isFinite);
-    let siguiente=ordenes.length?Math.max(...ordenes)+1:1;
-    const registros=peliculasPendientesImportacion.map(p=>({titulo:p.titulo,"año":p.anio,genero:p.genero,portada:p.portada||"",url:p.url,orden:siguiente++,destacada:false}));
-    const {error}=await db.from("peliculas").insert(registros);
+    let orden=ordenes.length?Math.max(...ordenes):0;
+    const registros=peliculasImportacionMasiva.map(p=>({titulo:p.titulo,'año':p.anio,genero:p.genero,url:p.url,portada:p.portada||'',orden:++orden,destacada:false}));
+    const {error}=await db.from('peliculas').insert(registros);
     if(error) throw error;
-    const cantidad=registros.length;
+    mensaje('importacionMasivaMsg',`✅ ${registros.length} películas importadas correctamente.`);
+    peliculasImportacionMasiva=[];
+    btn.classList.add('hidden');
+    $('importacionMasivaLista').innerHTML='';
     await cargarPeliculas();
-    peliculasPendientesImportacion=[];
-    $("importacionVistaPrevia").innerHTML="";
-    $("importacionAcciones").classList.add("hidden");
-    $("archivoImportacion").value="";
-    mensaje("importacionResumen",`✅ ${cantidad} películas importadas correctamente.`);
-  }catch(error){ console.error(error); mensaje("importacionResumen","No se pudieron importar las películas: "+error.message,true); }
-  finally{ if(btn) btn.disabled=false; }
+  }catch(error){ console.error(error); mensaje('importacionMasivaMsg','No se pudieron importar las películas: '+error.message,true); }
+  finally{ btn.disabled=false; }
 }
 
-document.addEventListener("DOMContentLoaded",()=>{
-  $("analizarImportacion")?.addEventListener("click",analizarImportacionMasiva);
-  $("confirmarImportacion")?.addEventListener("click",confirmarImportacionMasiva);
-  $("cancelarImportacion")?.addEventListener("click",limpiarImportacion);
+document.addEventListener('DOMContentLoaded',()=>{
+  $('analizarImportacionMasiva')?.addEventListener('click',analizarImportacionMasiva);
+  $('confirmarImportacionMasiva')?.addEventListener('click',confirmarImportacionMasiva);
 });
-/* =============================================================== */
+/* ================= FIN IMPORTACIÓN MASIVA ================= */
