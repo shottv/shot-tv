@@ -101,27 +101,31 @@ async function activarPruebaSiHaySesion(){
   const {data:{session}} = await db.auth.getSession();
   if(!session) return;
 
+  // La prueba SOLO puede activarse después de que Supabase confirme el correo.
+  const {data:{user}, error:userError} = await db.auth.getUser();
+  if(userError || !user || !user.email_confirmed_at){
+    await db.auth.signOut();
+    solicitud.classList.remove("activo");
+    revision.classList.add("activo");
+    correoDestino.textContent = user?.email || "tu correo electrónico";
+    mostrar("📬 Revisa tu correo y confirma tu cuenta. La prueba de 24 horas se activará únicamente después de verificar el correo.","info");
+    return;
+  }
+
   solicitud.style.display="none";
   revision.style.display="none";
   mostrar("🔐 Correo verificado. Estamos activando tu prueba gratuita...","info");
 
   const {data,error} = await db.rpc("activar_prueba_gratis");
-
   if(error){
     const texto = error.message || "No se pudo activar la prueba.";
-    if(/ya utilizó/i.test(texto)){
-      mostrar("ℹ️ Este correo ya utilizó su prueba gratuita. Si tienes una suscripción, puedes iniciar sesión en Shot TV.","error");
-    } else {
-      mostrar("⚠️ "+texto,"error");
-    }
+    if(/ya utilizó/i.test(texto)) mostrar("ℹ️ Este correo ya utilizó su prueba gratuita. Si tienes una suscripción, puedes iniciar sesión en Shot TV.","error");
+    else mostrar("⚠️ "+texto,"error");
     return;
   }
 
   const fecha = Array.isArray(data) ? data[0]?.fecha_vencimiento : null;
-  const vencimiento = fecha
-    ? new Date(fecha).toLocaleString("es-MX",{dateStyle:"long",timeStyle:"short"})
-    : "dentro de 24 horas";
-
+  const vencimiento = fecha ? new Date(fecha).toLocaleString("es-MX",{dateStyle:"long",timeStyle:"short"}) : "dentro de 24 horas";
   mostrar("🎉 ¡Tu correo fue verificado y tu prueba está activa! Tu acceso vence el "+vencimiento+".","exito");
   entrar.style.display="block";
 }
@@ -161,14 +165,13 @@ document.getElementById("formCorreo").addEventListener("submit", async (e)=>{
     });
     if(error) throw error;
 
-    if(data && data.session){
-      await activarPruebaSiHaySesion();
-      return;
-    }
-
+    // Nunca activar la prueba inmediatamente después del registro.
+    // El usuario debe abrir el enlace de confirmación enviado por Supabase.
+    await db.auth.signOut();
     correoDestino.textContent=email;
     solicitud.classList.remove("activo");
     revision.classList.add("activo");
+    mostrar("📬 Enviamos un correo de confirmación. Abre el enlace recibido para verificar tu dirección; solo entonces se activarán las 24 horas de prueba.","info");
   }catch(error){
     console.error(error);
     mostrar("⚠️ "+(error.message||"No se pudo crear el acceso."),"error");
