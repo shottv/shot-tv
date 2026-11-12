@@ -212,7 +212,7 @@ async function cargarNetflixVisto(){
   estado.textContent=lista.length ? "" : "Aún no hay películas seleccionadas.";
   grid.innerHTML=lista.map(m=>`
     <article class="card" style="position:relative;" onclick="abrir(${Number(m.id)})">
-      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
+      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}" loading="lazy" decoding="async">
       <div class="info">
         <h3>${esc(m.titulo)}</h3>
         <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
@@ -483,7 +483,7 @@ function render(){
 
   $("grid").innerHTML=lista.map(m=>`
     <article class="card" onclick="abrir(${Number(m.id)})">
-      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}">
+      <img class="poster" src="${esc(m.portada)}" alt="${esc(m.titulo)}" loading="lazy" decoding="async">
       <div class="info">
         <h3>${esc(m.titulo)}</h3>
         <div class="meta">${esc(m.año)} · ${esc(m.genero)}</div>
