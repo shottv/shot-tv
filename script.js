@@ -3,9 +3,6 @@ const SUPABASE_URL = "https://akpsjzcuimlwvehbammq.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_23vVIVgRZbhBHm2xCbcczg_Zdg12tMn";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-
-// Buscador seguro de información y portadas (Cloudflare Worker)
-const SHOTTV_PORTADAS_API = "https://shottv-portadas.serviciosdigitales656.workers.dev/";
 const $ = id => document.getElementById(id);
 let peliculas = [];
 
@@ -679,83 +676,83 @@ async function agregarPelicula(){
     mensaje("adminMsg","Debes iniciar sesión.",true);
     return;
   }
-
-  const tituloIngresado=$("titulo").value.trim();
+  const titulo=$("titulo").value.trim();
+  const anio=Number($("anio").value)||null;
+  const genero=$("genero").value.trim()||"Sin género";
   const url=$("url").value.trim();
+  const file=$("portada").files[0];
 
-  // Ya no es necesario subir manualmente una portada.
-  if(!tituloIngresado || !url){
-    mensaje("adminMsg","Completa el título y el Direct Link (streaming). La información de la película se buscará automáticamente.",true);
+  if(!titulo||!url||!file){
+    mensaje("adminMsg","Completa título, portada y Direct Link (streaming).",true);
     return;
   }
   if(!/^https?:\/\//i.test(url)){
     mensaje("adminMsg","El enlace de streaming no parece una URL válida.",true);
     return;
   }
+  if(!file.type.startsWith("image/")){
+    mensaje("adminMsg","La portada debe ser una imagen.",true);
+    return;
+  }
 
   const btn=$("agregar");
   btn.disabled=true;
-  mensaje("adminMsg","🔎 Buscando información y portada de la película...");
+  mensaje("adminMsg","Subiendo portada y guardando película...");
 
-  try{
-    const consulta=SHOTTV_PORTADAS_API+"?titulo="+encodeURIComponent(tituloIngresado);
-    const respuesta=await fetch(consulta);
-    const datos=await respuesta.json().catch(()=>null);
+  const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+  const path=`${crypto.randomUUID()}-${nombreArchivoSeguro(file.name)}.${ext}`;
 
-    if(!respuesta.ok || !datos || !datos.encontrado){
-      throw new Error(datos?.error || datos?.mensaje || "No se encontró información para esta película.");
-    }
-
-    const titulo=datos.titulo || tituloIngresado;
-    const anio=datos.año ? Number(datos.año) : (Number($("anio")?.value)||null);
-    const genero=datos.genero || $("genero")?.value.trim() || "Sin género";
-    const portada=datos.portada || "";
-
-    if(!portada){
-      throw new Error("Se encontró la película, pero no hay una portada disponible.");
-    }
-
-    const ponerPrimero=$("ponerPrimero").checked;
-    const destacada=!!$("destacada")?.checked;
-
-    // Si se coloca al principio, usamos un orden menor que el actual.
-    const ordenNumerico=peliculas
-      .map(m=>Number(m.orden))
-      .filter(n=>Number.isFinite(n));
-    const minOrden=ordenNumerico.length ? Math.min(...ordenNumerico) : 1;
-    const maxOrden=ordenNumerico.length ? Math.max(...ordenNumerico) : 0;
-    const nuevoOrden=ponerPrimero ? minOrden-1 : maxOrden+1;
-
-    mensaje("adminMsg","💾 Guardando película...");
-
-    const {error}=await db.from("peliculas").insert({
-      titulo,
-      "año":anio,
-      genero,
-      portada,
-      url,
-      orden:nuevoOrden,
-      destacada
-    });
-
-    if(error) throw error;
-
-    $("titulo").value="";
-    if($("anio")) $("anio").value="2026";
-    if($("genero")) $("genero").value="";
-    if($("portada")) $("portada").value="";
-    $("url").value="";
-    $("ponerPrimero").checked=true;
-    if($("destacada")) $("destacada").checked=false;
-
-    mensaje("adminMsg","Película agregada correctamente. 🎬");
-    await cargarPeliculas();
-  }catch(error){
-    console.error(error);
-    mensaje("adminMsg","No se pudo agregar la película: "+(error.message||String(error)),true);
-  }finally{
+  const upload=await db.storage.from("posters").upload(path,file,{cacheControl:"3600",upsert:false});
+  if(upload.error){
+    console.error(upload.error);
     btn.disabled=false;
+    mensaje("adminMsg","No se pudo subir la portada: "+upload.error.message,true);
+    return;
   }
+
+  const {data:publicData}=db.storage.from("posters").getPublicUrl(path);
+  const portada=publicData.publicUrl;
+
+  const ponerPrimero = $("ponerPrimero").checked;
+  const destacada = !!$("destacada")?.checked;
+
+  // Si se coloca al principio, usamos un orden menor que el actual.
+  // Así no tenemos que actualizar todas las películas existentes.
+  const ordenNumerico = peliculas
+    .map(m => Number(m.orden))
+    .filter(n => Number.isFinite(n));
+  const minOrden = ordenNumerico.length ? Math.min(...ordenNumerico) : 1;
+  const maxOrden = ordenNumerico.length ? Math.max(...ordenNumerico) : 0;
+  const nuevoOrden = ponerPrimero ? minOrden - 1 : maxOrden + 1;
+
+  const {error}=await db.from("peliculas").insert({
+    titulo,
+    "año":anio,
+    genero,
+    portada,
+    url,
+    orden:nuevoOrden,
+    destacada
+  });
+
+  if(error){
+    await db.storage.from("posters").remove([path]);
+    console.error(error);
+    btn.disabled=false;
+    mensaje("adminMsg","No se pudo guardar la película: "+error.message,true);
+    return;
+  }
+
+  $("titulo").value="";
+  $("anio").value="2026";
+  $("genero").value="";
+  $("portada").value="";
+  $("url").value="";
+  $("ponerPrimero").checked=true;
+  if($("destacada")) $("destacada").checked=false;
+  btn.disabled=false;
+  mensaje("adminMsg","Película agregada correctamente. 🎬");
+  await cargarPeliculas();
 }
 
 async function moverPelicula(id, direccion){
@@ -2806,30 +2803,9 @@ function valorColumnaImportacion(fila,nombres){
   return '';
 }
 
-async function buscarInformacionAutomatica(titulo){
-  const consultas=[];
-  const agregar=q=>{
-    q=String(q||'').trim();
-    if(q && !consultas.some(x=>x.toLowerCase()===q.toLowerCase())) consultas.push(q);
-  };
-
-  agregar(titulo);
-  agregar(String(titulo||'').replace(/\s*\(\d{4}\)\s*$/,'').trim());
-  agregar(String(titulo||'').replace(/\s+/g,' ').trim());
-
-  let ultimoError='';
-  for(const consulta of consultas){
-    try{
-      const respuesta=await fetch(SHOTTV_PORTADAS_API+"?titulo="+encodeURIComponent(consulta));
-      const datos=await respuesta.json().catch(()=>null);
-      if(respuesta.ok && datos?.encontrado) return datos;
-      ultimoError=datos?.error || datos?.mensaje || `El buscador respondió ${respuesta.status}`;
-    }catch(e){
-      ultimoError=e?.message||'No se pudo conectar con el buscador.';
-    }
-  }
-  throw new Error(ultimoError||'No se encontró información para esta película.');
-}
+// ================= BÚSQUEDA AUTOMÁTICA MEDIANTE WORKER DE SHOT TV =================
+// La clave de TMDb permanece protegida en Cloudflare. Shot TV solo consulta el Worker.
+const SHOTTV_PORTADAS_WORKER = 'https://shottv-portadas.serviciosdigitales656.workers.dev/';
 
 async function buscarPortadasAutomaticas(p){
   p.buscandoPortada=true;
@@ -2837,19 +2813,37 @@ async function buscarPortadasAutomaticas(p){
   renderizarRevisionImportacion();
 
   try{
-    const datos=await buscarInformacionAutomatica(p.titulo);
+    const tituloOriginal=String(p.titulo||'').trim();
+    if(!tituloOriginal) throw new Error('Falta el título de la película.');
+
+    const respuesta=await fetch(
+      `${SHOTTV_PORTADAS_WORKER}?titulo=${encodeURIComponent(tituloOriginal)}`
+    );
+
+    const datos=await respuesta.json();
+
+    if(!respuesta.ok){
+      throw new Error(datos?.error || `El buscador respondió con código ${respuesta.status}.`);
+    }
+
+    if(!datos?.encontrado){
+      p.opcionesPortada=[];
+      p.errorBusqueda=datos?.mensaje || datos?.error || 'No se encontró información para este título.';
+      return;
+    }
+
     const opcion={
-      url:datos.portada||'',
-      titulo:datos.titulo||p.titulo||'',
-      anio:datos.año||'',
-      genero:datos.genero||''
+      url: datos.portada || '',
+      titulo: datos.titulo || tituloOriginal,
+      anio: datos.año || '',
+      genero: datos.genero || ''
     };
 
-    p.opcionesPortada=opcion.url?[opcion]:[];
+    p.opcionesPortada=[opcion];
     p.indicePortada=0;
-    p.portada=opcion.url||'';
-    p.anio=opcion.anio||p.anio||'';
-    p.genero=opcion.genero||p.genero||'';
+    p.portada=opcion.url || p.portada || '';
+    p.anio=opcion.anio || p.anio || '';
+    p.genero=opcion.genero || p.genero || '';
 
     if(!p.portada){
       p.errorBusqueda='Se encontró la película, pero no hay una portada disponible.';
@@ -2857,12 +2851,13 @@ async function buscarPortadasAutomaticas(p){
   }catch(e){
     console.warn('Shot TV: no se encontró información automática para',p.titulo,e);
     p.opcionesPortada=[];
-    p.errorBusqueda=e?.message||'No se pudo consultar el buscador.';
+    p.errorBusqueda=e?.message || 'No se pudo consultar el buscador automático.';
   }finally{
     p.buscandoPortada=false;
     renderizarRevisionImportacion();
   }
 }
+
 function escaparAtributo(valor){
   return String(valor ?? '')
     .replace(/&/g,'&amp;')
@@ -2949,6 +2944,20 @@ async function confirmarImportacionMasiva(){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
+  // Ya no se necesita introducir una clave de TMDb en Shot TV.
+  // La búsqueda se realiza mediante el Worker de Cloudflare.
+  const claveTmdb=$('tmdbApiKey');
+  if(claveTmdb){
+    const contenedor=claveTmdb.closest('.form-group, .campo, div');
+    if(contenedor && contenedor !== claveTmdb.parentElement?.parentElement){
+      contenedor.style.display='none';
+    }else{
+      claveTmdb.style.display='none';
+      const etiqueta=document.querySelector('label[for="tmdbApiKey"]');
+      if(etiqueta) etiqueta.style.display='none';
+    }
+  }
+
   $('analizarImportacionMasiva')?.addEventListener('click',analizarImportacionMasiva);
   $('confirmarImportacionMasiva')?.addEventListener('click',confirmarImportacionMasiva);
 });
