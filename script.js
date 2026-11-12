@@ -2844,29 +2844,38 @@ async function obtenerGenerosTMDb(token){
 
 async function buscarPortadasAutomaticas(p){
   const token=(localStorage.getItem('shottv_tmdb_token')||'').trim();
-  if(!token){ p.opcionesPortada=[]; return; }
-  p.buscandoPortada=true; renderizarRevisionImportacion();
+  if(!token){ p.opcionesPortada=[]; p.errorBusqueda='Falta la clave de TMDb.'; return; }
+  p.buscandoPortada=true; p.errorBusqueda=''; renderizarRevisionImportacion();
   try{
     const generos=await obtenerGenerosTMDb(token);
-    const consultas=[];
     const tituloOriginal=String(p.titulo||'').trim();
-    if(tituloOriginal) consultas.push(tituloOriginal);
-    // Segundo intento sin año entre paréntesis ni espacios sobrantes.
-    const limpio=tituloOriginal.replace(/\s*\(\d{4}\)\s*$/,'').trim();
-    if(limpio && limpio.toLowerCase()!==tituloOriginal.toLowerCase()) consultas.push(limpio);
+    const consultas=[];
+    const agregar=(q)=>{ q=String(q||'').trim(); if(q && !consultas.some(x=>x.toLowerCase()===q.toLowerCase())) consultas.push(q); };
+    agregar(tituloOriginal);
+    agregar(tituloOriginal.replace(/\s*\(\d{4}\)\s*$/,'').trim());
+    // Intento adicional: elimina espacios repetidos y caracteres que pueden venir del Excel.
+    agregar(tituloOriginal.replace(/\s+/g,' ').trim());
 
     let resultados=[];
     for(const consulta of consultas){
-      const params={query:consulta,language:'es-MX',include_adult:'false'};
-      if(p.anio) params.year=String(p.anio);
-      let data=await tmdbFetch('search/movie',token,params);
+      // Primero una búsqueda normal. No enviamos año porque el sistema debe obtenerlo automáticamente.
+      let data=await tmdbFetch('search/movie',token,{query:consulta,language:'es-MX',include_adult:'false'});
       resultados=data.results||[];
-      // Si la búsqueda en español no devuelve resultados, probar sin idioma.
+      if(!resultados.length){
+        data=await tmdbFetch('search/movie',token,{query:consulta,language:'en-US',include_adult:'false'});
+        resultados=data.results||[];
+      }
       if(!resultados.length){
         data=await tmdbFetch('search/movie',token,{query:consulta,include_adult:'false'});
         resultados=data.results||[];
       }
       if(resultados.length) break;
+    }
+
+    if(!resultados.length){
+      p.opcionesPortada=[];
+      p.errorBusqueda='TMDb no encontró resultados para este título.';
+      return;
     }
 
     const opciones=resultados.map(x=>({
@@ -2875,21 +2884,18 @@ async function buscarPortadasAutomaticas(p){
       anio:(x.release_date||'').slice(0,4),
       genero:(x.genre_ids||[]).map(id=>generos[id]).filter(Boolean).join(', ')
     }));
-    // Conservamos la información aunque algún resultado no tenga portada.
     p.opcionesPortada=opciones; p.indicePortada=0;
-    if(opciones.length){
-      const elegido=opciones.find(x=>x.url)||opciones[0];
-      p.portada=elegido.url||'';
-      if(elegido.anio) p.anio=elegido.anio;
-      if(elegido.genero) p.genero=elegido.genero;
-    }
+    const elegido=opciones.find(x=>x.url)||opciones[0];
+    p.portada=elegido.url||'';
+    p.anio=elegido.anio||p.anio||'';
+    p.genero=elegido.genero||p.genero||'';
+    if(!p.portada) p.errorBusqueda='Se encontró la película, pero TMDb no tiene una portada disponible.';
   }catch(e){
     console.warn('Shot TV: no se encontró información automática para',p.titulo,e);
     p.opcionesPortada=[];
     p.errorBusqueda=e?.message||'No se pudo consultar TMDb.';
   }finally{ p.buscandoPortada=false; renderizarRevisionImportacion(); }
 }
-
 function escaparAtributo(valor){
   return String(valor ?? '')
     .replace(/&/g,'&amp;')
@@ -2909,7 +2915,7 @@ function renderizarRevisionImportacion(){
     return `<div class="solicitud-item" style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;">
       ${portada}
       <div style="flex:1;min-width:0;">
-        <strong>${i+1}. ${esc(p.titulo)}</strong><br><small>${esc(p.anio||'Año no encontrado')} · ${esc(p.genero||'Género no encontrado')}</small>${p.errorBusqueda?`<br><small style="color:#ffb3b3;display:block;margin-top:4px;">⚠️ ${esc(p.errorBusqueda)}</small>`:''}<br>
+        <strong>${i+1}. ${esc(p.titulo)}</strong><br><small>${esc(p.anio||'Año no encontrado')} · ${esc(p.genero||'Género no encontrado')}</small>${p.errorBusqueda?`<br><div style="color:#ffb3b3;font-size:12px;margin-top:6px;font-weight:700;">⚠️ ${esc(p.errorBusqueda)}</div>`:''}<br>
         <div style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap;">
           <button type="button" class="btn" data-portada-otra="${i}">🔄 Buscar otra</button>
           <button type="button" class="btn" data-portada-url="${i}">✏️ Cambiar URL</button>
