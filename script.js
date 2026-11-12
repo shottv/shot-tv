@@ -2803,17 +2803,40 @@ function valorColumnaImportacion(fila,nombres){
   return '';
 }
 
+function tmdbOpcionesAutenticacion(credencial){
+  const c=String(credencial||'').trim();
+  if(!c) return [];
+  // TMDb permite una API Key corta o un Read Access Token largo.
+  if(c.startsWith('eyJ')){
+    return [{headers:{Authorization:`Bearer ${c}`,accept:'application/json'}}];
+  }
+  return [{headers:{accept:'application/json'},api_key:c}];
+}
+
+async function tmdbFetch(ruta,credencial,params={}){
+  const opciones=tmdbOpcionesAutenticacion(credencial);
+  if(!opciones.length) throw new Error('Falta la clave de TMDb.');
+  let ultimoError='';
+  for(const opcion of opciones){
+    const q=new URLSearchParams(params);
+    if(opcion.api_key) q.set('api_key',opcion.api_key);
+    const url=`https://api.themoviedb.org/3/${ruta}?${q.toString()}`;
+    try{
+      const respuesta=await fetch(url,{headers:opcion.headers});
+      if(respuesta.ok) return await respuesta.json();
+      ultimoError=`TMDb respondió ${respuesta.status}`;
+    }catch(e){ ultimoError=e?.message||'No se pudo conectar con TMDb.'; }
+  }
+  throw new Error(ultimoError||'No fue posible consultar TMDb.');
+}
+
 async function obtenerGenerosTMDb(token){
   const cacheKey='shottv_tmdb_generos_es_mx';
   try{
     const guardado=JSON.parse(localStorage.getItem(cacheKey)||'null');
     if(guardado && guardado.datos && Date.now()-guardado.fecha<86400000) return guardado.datos;
   }catch(_){ }
-  const respuesta=await fetch('https://api.themoviedb.org/3/genre/movie/list?language=es-MX',{
-    headers:{Authorization:`Bearer ${token}`,accept:'application/json'}
-  });
-  if(!respuesta.ok) throw new Error('No fue posible consultar los géneros de TMDb.');
-  const data=await respuesta.json();
+  const data=await tmdbFetch('genre/movie/list',token,{language:'es-MX'});
   const mapa={}; (data.genres||[]).forEach(g=>mapa[g.id]=g.name);
   try{ localStorage.setItem(cacheKey,JSON.stringify({fecha:Date.now(),datos:mapa})); }catch(_){ }
   return mapa;
@@ -2824,29 +2847,47 @@ async function buscarPortadasAutomaticas(p){
   if(!token){ p.opcionesPortada=[]; return; }
   p.buscandoPortada=true; renderizarRevisionImportacion();
   try{
-    const params=new URLSearchParams({query:p.titulo,language:'es-MX',include_adult:'false'});
-    if(p.anio) params.set('year',String(p.anio));
-    const respuesta=await fetch(`https://api.themoviedb.org/3/search/movie?${params.toString()}`,{
-      headers:{Authorization:`Bearer ${token}`,accept:'application/json'}
-    });
-    if(!respuesta.ok) throw new Error('No fue posible consultar TMDb. Revisa la clave.');
-    const data=await respuesta.json();
     const generos=await obtenerGenerosTMDb(token);
-    const resultados=(data.results||[]).map(x=>({
+    const consultas=[];
+    const tituloOriginal=String(p.titulo||'').trim();
+    if(tituloOriginal) consultas.push(tituloOriginal);
+    // Segundo intento sin año entre paréntesis ni espacios sobrantes.
+    const limpio=tituloOriginal.replace(/\s*\(\d{4}\)\s*$/,'').trim();
+    if(limpio && limpio.toLowerCase()!==tituloOriginal.toLowerCase()) consultas.push(limpio);
+
+    let resultados=[];
+    for(const consulta of consultas){
+      const params={query:consulta,language:'es-MX',include_adult:'false'};
+      if(p.anio) params.year=String(p.anio);
+      let data=await tmdbFetch('search/movie',token,params);
+      resultados=data.results||[];
+      // Si la búsqueda en español no devuelve resultados, probar sin idioma.
+      if(!resultados.length){
+        data=await tmdbFetch('search/movie',token,{query:consulta,include_adult:'false'});
+        resultados=data.results||[];
+      }
+      if(resultados.length) break;
+    }
+
+    const opciones=resultados.map(x=>({
       url:x.poster_path?`https://image.tmdb.org/t/p/w500${x.poster_path}`:'',
       titulo:x.title||x.original_title||'',
       anio:(x.release_date||'').slice(0,4),
       genero:(x.genre_ids||[]).map(id=>generos[id]).filter(Boolean).join(', ')
-    })).filter(x=>x.url);
-    p.opcionesPortada=resultados; p.indicePortada=0;
-    if(resultados.length){
-      const elegido=resultados[0];
-      p.portada=elegido.url;
-      if(!p.anio && elegido.anio) p.anio=elegido.anio;
-      if(!p.genero && elegido.genero) p.genero=elegido.genero;
+    }));
+    // Conservamos la información aunque algún resultado no tenga portada.
+    p.opcionesPortada=opciones; p.indicePortada=0;
+    if(opciones.length){
+      const elegido=opciones.find(x=>x.url)||opciones[0];
+      p.portada=elegido.url||'';
+      if(elegido.anio) p.anio=elegido.anio;
+      if(elegido.genero) p.genero=elegido.genero;
     }
-  }catch(e){ console.warn('Shot TV: no se encontró información automática para',p.titulo,e); p.opcionesPortada=[]; }
-  finally{ p.buscandoPortada=false; renderizarRevisionImportacion(); }
+  }catch(e){
+    console.warn('Shot TV: no se encontró información automática para',p.titulo,e);
+    p.opcionesPortada=[];
+    p.errorBusqueda=e?.message||'No se pudo consultar TMDb.';
+  }finally{ p.buscandoPortada=false; renderizarRevisionImportacion(); }
 }
 
 function escaparAtributo(valor){
@@ -2868,7 +2909,7 @@ function renderizarRevisionImportacion(){
     return `<div class="solicitud-item" style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;">
       ${portada}
       <div style="flex:1;min-width:0;">
-        <strong>${i+1}. ${esc(p.titulo)}</strong><br><small>${esc(p.anio)} · ${esc(p.genero)}</small><br>
+        <strong>${i+1}. ${esc(p.titulo)}</strong><br><small>${esc(p.anio||'Año no encontrado')} · ${esc(p.genero||'Género no encontrado')}</small>${p.errorBusqueda?`<br><small style="color:#ffb3b3;display:block;margin-top:4px;">⚠️ ${esc(p.errorBusqueda)}</small>`:''}<br>
         <div style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap;">
           <button type="button" class="btn" data-portada-otra="${i}">🔄 Buscar otra</button>
           <button type="button" class="btn" data-portada-url="${i}">✏️ Cambiar URL</button>
