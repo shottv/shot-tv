@@ -1588,10 +1588,7 @@ async function moverCanalEnVivo(id, movimiento){
 function reproducirCanalEnVivo(id){
   const canal=canalesEnVivo.find(c=>Number(c.id)===Number(id));
   if(!canal)return;
-  if(detectarYouTube(canal.url)){
-    alert("Esta sección está configurada para enlaces directos de canales (HLS/M3U8 o MP4), no para enlaces de YouTube.");
-    return;
-  }
+  // Los enlaces de YouTube se reproducen directamente en el reproductor integrado.
   // Los canales MPEG-TS se abren en un reproductor independiente, sin cambiar el diseño del sitio.
   const urlCanal=String(canal.url||"").trim();
   const esTS=/\.ts(?:$|[?#])/i.test(urlCanal) || /[?&]f=\.ts(?:&|$)/i.test(urlCanal);
@@ -2803,61 +2800,99 @@ function valorColumnaImportacion(fila,nombres){
   return '';
 }
 
-// ================= BÚSQUEDA AUTOMÁTICA MEDIANTE WORKER DE SHOT TV =================
-// La clave de TMDb permanece protegida en Cloudflare. Shot TV solo consulta el Worker.
-const SHOTTV_PORTADAS_WORKER = 'https://shottv-portadas.serviciosdigitales656.workers.dev/';
+function tmdbOpcionesAutenticacion(credencial){
+  const c=String(credencial||'').trim();
+  if(!c) return [];
+  // TMDb permite una API Key corta o un Read Access Token largo.
+  if(c.startsWith('eyJ')){
+    return [{headers:{Authorization:`Bearer ${c}`,accept:'application/json'}}];
+  }
+  return [{headers:{accept:'application/json'},api_key:c}];
+}
+
+async function tmdbFetch(ruta,credencial,params={}){
+  const opciones=tmdbOpcionesAutenticacion(credencial);
+  if(!opciones.length) throw new Error('Falta la clave de TMDb.');
+  let ultimoError='';
+  for(const opcion of opciones){
+    const q=new URLSearchParams(params);
+    if(opcion.api_key) q.set('api_key',opcion.api_key);
+    const url=`https://api.themoviedb.org/3/${ruta}?${q.toString()}`;
+    try{
+      const respuesta=await fetch(url,{headers:opcion.headers});
+      if(respuesta.ok) return await respuesta.json();
+      ultimoError=`TMDb respondió ${respuesta.status}`;
+    }catch(e){ ultimoError=e?.message||'No se pudo conectar con TMDb.'; }
+  }
+  throw new Error(ultimoError||'No fue posible consultar TMDb.');
+}
+
+async function obtenerGenerosTMDb(token){
+  const cacheKey='shottv_tmdb_generos_es_mx';
+  try{
+    const guardado=JSON.parse(localStorage.getItem(cacheKey)||'null');
+    if(guardado && guardado.datos && Date.now()-guardado.fecha<86400000) return guardado.datos;
+  }catch(_){ }
+  const data=await tmdbFetch('genre/movie/list',token,{language:'es-MX'});
+  const mapa={}; (data.genres||[]).forEach(g=>mapa[g.id]=g.name);
+  try{ localStorage.setItem(cacheKey,JSON.stringify({fecha:Date.now(),datos:mapa})); }catch(_){ }
+  return mapa;
+}
 
 async function buscarPortadasAutomaticas(p){
-  p.buscandoPortada=true;
-  p.errorBusqueda='';
-  renderizarRevisionImportacion();
-
+  const token=(localStorage.getItem('shottv_tmdb_token')||'').trim();
+  if(!token){ p.opcionesPortada=[]; p.errorBusqueda='Falta la clave de TMDb.'; return; }
+  p.buscandoPortada=true; p.errorBusqueda=''; renderizarRevisionImportacion();
   try{
+    const generos=await obtenerGenerosTMDb(token);
     const tituloOriginal=String(p.titulo||'').trim();
-    if(!tituloOriginal) throw new Error('Falta el título de la película.');
+    const consultas=[];
+    const agregar=(q)=>{ q=String(q||'').trim(); if(q && !consultas.some(x=>x.toLowerCase()===q.toLowerCase())) consultas.push(q); };
+    agregar(tituloOriginal);
+    agregar(tituloOriginal.replace(/\s*\(\d{4}\)\s*$/,'').trim());
+    // Intento adicional: elimina espacios repetidos y caracteres que pueden venir del Excel.
+    agregar(tituloOriginal.replace(/\s+/g,' ').trim());
 
-    const respuesta=await fetch(
-      `${SHOTTV_PORTADAS_WORKER}?titulo=${encodeURIComponent(tituloOriginal)}`
-    );
-
-    const datos=await respuesta.json();
-
-    if(!respuesta.ok){
-      throw new Error(datos?.error || `El buscador respondió con código ${respuesta.status}.`);
+    let resultados=[];
+    for(const consulta of consultas){
+      // Primero una búsqueda normal. No enviamos año porque el sistema debe obtenerlo automáticamente.
+      let data=await tmdbFetch('search/movie',token,{query:consulta,language:'es-MX',include_adult:'false'});
+      resultados=data.results||[];
+      if(!resultados.length){
+        data=await tmdbFetch('search/movie',token,{query:consulta,language:'en-US',include_adult:'false'});
+        resultados=data.results||[];
+      }
+      if(!resultados.length){
+        data=await tmdbFetch('search/movie',token,{query:consulta,include_adult:'false'});
+        resultados=data.results||[];
+      }
+      if(resultados.length) break;
     }
 
-    if(!datos?.encontrado){
+    if(!resultados.length){
       p.opcionesPortada=[];
-      p.errorBusqueda=datos?.mensaje || datos?.error || 'No se encontró información para este título.';
+      p.errorBusqueda='TMDb no encontró resultados para este título.';
       return;
     }
 
-    const opcion={
-      url: datos.portada || '',
-      titulo: datos.titulo || tituloOriginal,
-      anio: datos.año || '',
-      genero: datos.genero || ''
-    };
-
-    p.opcionesPortada=[opcion];
-    p.indicePortada=0;
-    p.portada=opcion.url || p.portada || '';
-    p.anio=opcion.anio || p.anio || '';
-    p.genero=opcion.genero || p.genero || '';
-
-    if(!p.portada){
-      p.errorBusqueda='Se encontró la película, pero no hay una portada disponible.';
-    }
+    const opciones=resultados.map(x=>({
+      url:x.poster_path?`https://image.tmdb.org/t/p/w500${x.poster_path}`:'',
+      titulo:x.title||x.original_title||'',
+      anio:(x.release_date||'').slice(0,4),
+      genero:(x.genre_ids||[]).map(id=>generos[id]).filter(Boolean).join(', ')
+    }));
+    p.opcionesPortada=opciones; p.indicePortada=0;
+    const elegido=opciones.find(x=>x.url)||opciones[0];
+    p.portada=elegido.url||'';
+    p.anio=elegido.anio||p.anio||'';
+    p.genero=elegido.genero||p.genero||'';
+    if(!p.portada) p.errorBusqueda='Se encontró la película, pero TMDb no tiene una portada disponible.';
   }catch(e){
     console.warn('Shot TV: no se encontró información automática para',p.titulo,e);
     p.opcionesPortada=[];
-    p.errorBusqueda=e?.message || 'No se pudo consultar el buscador automático.';
-  }finally{
-    p.buscandoPortada=false;
-    renderizarRevisionImportacion();
-  }
+    p.errorBusqueda=e?.message||'No se pudo consultar TMDb.';
+  }finally{ p.buscandoPortada=false; renderizarRevisionImportacion(); }
 }
-
 function escaparAtributo(valor){
   return String(valor ?? '')
     .replace(/&/g,'&amp;')
@@ -2905,6 +2940,9 @@ async function analizarImportacionMasiva(){
   const archivo=$('archivoImportacionMasiva'), resumen=$('importacionMasivaResumen'), confirmar=$('confirmarImportacionMasiva');
   if(!archivo?.files?.length){ mensaje('importacionMasivaMsg','Selecciona un archivo Excel o CSV.',true); return; }
   try{
+    const claveTmdb=($('tmdbApiKey')?.value||'').trim();
+    if(claveTmdb) localStorage.setItem('shottv_tmdb_token',claveTmdb);
+    if(!claveTmdb && !localStorage.getItem('shottv_tmdb_token')){ mensaje('importacionMasivaMsg','⚠️ Agrega tu clave de TMDb para buscar las portadas automáticamente.',true); return; }
     mensaje('importacionMasivaMsg','Analizando archivo y buscando automáticamente año, género y portada...');
     const filas=await leerArchivoImportacionMasiva(archivo.files[0]);
     const existentes=peliculas||[], claves=new Set(existentes.map(p=>normalizarClaveImportacion(p.titulo,p['año']))), vistas=new Set();
@@ -2944,20 +2982,6 @@ async function confirmarImportacionMasiva(){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
-  // Ya no se necesita introducir una clave de TMDb en Shot TV.
-  // La búsqueda se realiza mediante el Worker de Cloudflare.
-  const claveTmdb=$('tmdbApiKey');
-  if(claveTmdb){
-    const contenedor=claveTmdb.closest('.form-group, .campo, div');
-    if(contenedor && contenedor !== claveTmdb.parentElement?.parentElement){
-      contenedor.style.display='none';
-    }else{
-      claveTmdb.style.display='none';
-      const etiqueta=document.querySelector('label[for="tmdbApiKey"]');
-      if(etiqueta) etiqueta.style.display='none';
-    }
-  }
-
   $('analizarImportacionMasiva')?.addEventListener('click',analizarImportacionMasiva);
   $('confirmarImportacionMasiva')?.addEventListener('click',confirmarImportacionMasiva);
 });
