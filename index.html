@@ -489,6 +489,21 @@ a[href*="wa.me"],a[href*="api.whatsapp.com"]{
           o MP4. El enlace debe permitir reproducción desde el navegador.
         </p>
 
+        <!-- IMPORTAR LISTA M3U8: herramienta independiente del formulario actual -->
+        <div class="form" id="importacionCanalesM3U8" style="margin-bottom:18px;">
+          <label class="full">
+            📂 Lista de canales (.m3u8 o .m3u)
+            <input id="archivoCanalesM3U8" type="file" accept=".m3u8,.m3u,text/plain">
+            <small>La lista puede incluir automáticamente el nombre, categoría y logo de cada canal.</small>
+          </label>
+
+          <button id="analizarCanalesM3U8" type="button">🔍 ANALIZAR LISTA DE CANALES</button>
+        </div>
+
+        <div id="importacionCanalesMsg" class="mensaje"></div>
+        <div id="importacionCanalesResumen" class="subtexto" style="margin-top:12px;"></div>
+        <div id="importacionCanalesLista" class="live-admin-list" style="margin-top:12px;"></div>
+        <button id="confirmarImportacionCanales" type="button" class="hidden" style="margin:12px 0 20px;">🚀 IMPORTAR CANALES NUEVOS</button>
 
         <div class="form">
 

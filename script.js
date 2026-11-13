@@ -2986,3 +2986,63 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('confirmarImportacionMasiva')?.addEventListener('click',confirmarImportacionMasiva);
 });
 /* ================= FIN IMPORTACIÓN MASIVA ================= */
+
+
+/* ================= IMPORTACIÓN DE CANALES M3U8 ================= */
+let canalesImportacionM3U8=[];
+
+function leerAtributoM3U8(linea,nombre){
+  const re=new RegExp(nombre+'\s*=\s*"([^\"]*)"','i');
+  const m=String(linea||'').match(re);
+  return m?m[1].trim():'';
+}
+function analizarTextoM3U8(texto){
+  const lineas=String(texto||'').replace(/^\uFEFF/,'').split(/\r?\n/);
+  const canales=[]; let info=null;
+  for(const original of lineas){
+    const linea=original.trim(); if(!linea) continue;
+    if(/^#EXTINF:/i.test(linea)){
+      const coma=linea.lastIndexOf(',');
+      info={nombre:coma>=0?linea.slice(coma+1).trim():'Canal sin nombre',logo:leerAtributoM3U8(linea,'tvg-logo'),categoria:leerAtributoM3U8(linea,'group-title')||'General'};
+      if(!info.nombre) info.nombre='Canal sin nombre';
+    }else if(info && !linea.startsWith('#')){
+      try{new URL(linea);canales.push({...info,url:linea});}catch(e){}
+      info=null;
+    }
+  }
+  return canales;
+}
+function renderizarRevisionCanalesM3U8(){
+  const lista=$('importacionCanalesLista'),confirmar=$('confirmarImportacionCanales'); if(!lista)return;
+  lista.innerHTML=canalesImportacionM3U8.slice(0,100).map((c,i)=>`<div class="live-admin-row"><div style="display:flex;gap:10px;align-items:center;min-width:0;">${c.logo?`<img src="${esc(c.logo)}" alt="" style="width:46px;height:46px;object-fit:contain;border-radius:6px;" onerror="this.style.display='none'">`:''}<div><strong>${i+1}. ${esc(c.nombre)}</strong><small>${esc(c.categoria||'General')}</small><small class="live-url">${esc(c.url)}</small></div></div></div>`).join('')||'<p class="ad-empty">No hay canales nuevos listos para importar.</p>';
+  if(canalesImportacionM3U8.length>100)lista.insertAdjacentHTML('beforeend',`<p class="subtexto">Mostrando los primeros 100 canales de ${canalesImportacionM3U8.length}.</p>`);
+  confirmar?.classList.toggle('hidden',canalesImportacionM3U8.length===0);
+}
+async function analizarImportacionCanalesM3U8(){
+  if(!usuario||!esAdmin){mensaje('importacionCanalesMsg','Inicia sesión como administrador.',true);return;}
+  const input=$('archivoCanalesM3U8'); if(!input?.files?.length){mensaje('importacionCanalesMsg','Selecciona una lista .m3u8 o .m3u.',true);return;}
+  try{
+    mensaje('importacionCanalesMsg','Leyendo y analizando la lista...');
+    const encontrados=analizarTextoM3U8(await input.files[0].text());
+    const {data,error}=await db.from('canales_en_vivo').select('nombre,url'); if(error)throw error;
+    const urls=new Set((data||[]).map(c=>String(c.url||'').trim())),nombres=new Set((data||[]).map(c=>String(c.nombre||'').trim().toLowerCase())),vistos=new Set(); let omitidos=0;
+    canalesImportacionM3U8=encontrados.filter(c=>{const u=String(c.url).trim(),n=String(c.nombre).trim().toLowerCase();if(urls.has(u)||nombres.has(n)||vistos.has(u)){omitidos++;return false;}vistos.add(u);return true;});
+    if($('importacionCanalesResumen'))$('importacionCanalesResumen').textContent=`Lista analizada: ${encontrados.length} canales encontrados. Nuevos: ${canalesImportacionM3U8.length}. Omitidos por duplicado: ${omitidos}.`;
+    renderizarRevisionCanalesM3U8(); mensaje('importacionCanalesMsg',canalesImportacionM3U8.length?'Revisa la lista y presiona IMPORTAR CANALES NUEVOS.':'No se encontraron canales nuevos para importar.');
+  }catch(error){console.error(error);mensaje('importacionCanalesMsg','No se pudo analizar la lista: '+(error.message||error),true);}
+}
+async function confirmarImportacionCanalesM3U8(){
+  if(!usuario||!esAdmin||!canalesImportacionM3U8.length)return;
+  const btn=$('confirmarImportacionCanales');btn.disabled=true;
+  try{
+    mensaje('importacionCanalesMsg','Importando canales...');
+    const {data:existentes,error:consultaError}=await db.from('canales_en_vivo').select('orden');if(consultaError)throw consultaError;
+    const ordenes=(existentes||[]).map(c=>Number(c.orden)).filter(Number.isFinite);let orden=ordenes.length?Math.max(...ordenes):0;
+    const registros=canalesImportacionM3U8.map(c=>({nombre:c.nombre,categoria:c.categoria||'General',url:c.url,logo:c.logo||'',activo:true,orden:++orden}));
+    const {error}=await db.from('canales_en_vivo').insert(registros);if(error)throw error;
+    mensaje('importacionCanalesMsg',`✅ ${registros.length} canales importados correctamente.`);canalesImportacionM3U8=[];
+    if($('archivoCanalesM3U8'))$('archivoCanalesM3U8').value='';if($('importacionCanalesResumen'))$('importacionCanalesResumen').textContent='';renderizarRevisionCanalesM3U8();await cargarCanalesEnVivo();await cargarCanalesAdmin();
+  }catch(error){console.error(error);mensaje('importacionCanalesMsg','No se pudieron importar los canales: '+(error.message||error),true);}finally{btn.disabled=false;}
+}
+document.addEventListener('DOMContentLoaded',()=>{$('analizarCanalesM3U8')?.addEventListener('click',analizarImportacionCanalesM3U8);$('confirmarImportacionCanales')?.addEventListener('click',confirmarImportacionCanalesM3U8);});
+/* ================= FIN IMPORTACIÓN DE CANALES M3U8 ================= */
